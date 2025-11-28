@@ -1,0 +1,112 @@
+/* Obision Extension Grid Styles */
+
+/* Main overlay container */
+#obision-grid-overlay {
+    background-color: rgba(0, 0, 0, 0.85);
+    padding: 40px;
+}
+
+/* Grid cells */
+.obision-grid-cell {
+    margin: 8px;
+    padding: 16px;
+    border: 2px solid rgba(255, 255, 255, 0.15);
+    border-radius: 12px;
+    background-color: rgba(30, 30, 30, 0.9);
+    background-gradient-direction: vertical;
+    background-gradient-start: rgba(40, 40, 40, 0.9);
+    background-gradient-end: rgba(25, 25, 25, 0.9);
+    transition-duration: 200ms;
+    min-width: 180px;
+    min-height: 120px;
+}
+
+.obision-grid-cell:hover {
+    background-color: rgba(50, 50, 50, 0.95);
+    border-color: rgba(255, 255, 255, 0.35);
+    transform: scale(1.02);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+}
+
+.obision-grid-cell:active {
+    transform: scale(0.98);
+}
+
+/* Focused/Current application cell */
+.obision-grid-cell-focused {
+    border-color: rgba(53, 132, 228, 0.8);
+    background-color: rgba(53, 132, 228, 0.2);
+    box-shadow: 0 0 20px rgba(53, 132, 228, 0.4);
+}
+
+.obision-grid-cell-focused:hover {
+    border-color: rgba(53, 132, 228, 1.0);
+    background-color: rgba(53, 132, 228, 0.3);
+    box-shadow: 0 0 30px rgba(53, 132, 228, 0.6);
+}
+
+/* Large cell for current app */
+.obision-grid-cell-large {
+    min-width: 380px;
+    min-height: 260px;
+    padding: 24px;
+}
+
+.obision-grid-cell-large .obision-grid-cell-title {
+    font-size: 20px;
+    margin-bottom: 8px;
+}
+
+.obision-grid-cell-large .obision-grid-cell-app {
+    font-size: 16px;
+}
+
+/* Cell content - Window title */
+.obision-grid-cell-title {
+    color: rgba(255, 255, 255, 0.95);
+    font-size: 14px;
+    font-weight: bold;
+    text-align: center;
+    margin-bottom: 6px;
+}
+
+.obision-grid-cell-title-large {
+    font-size: 18px;
+    margin-bottom: 10px;
+}
+
+/* Cell content - App name */
+.obision-grid-cell-app {
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 12px;
+    text-align: center;
+    font-style: italic;
+}
+
+.obision-grid-cell-app-large {
+    font-size: 14px;
+}
+
+/* Panel indicator (if used) */
+.obision-grid-indicator {
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.9);
+    padding: 4px 8px;
+    margin: 0 4px;
+}
+
+.obision-grid-indicator:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+}
+
+/* Empty cell */
+.obision-grid-cell-empty {
+    background-color: rgba(20, 20, 20, 0.6);
+    border-color: rgba(255, 255, 255, 0.05);
+}
+
+.obision-grid-cell-empty:hover {
+    background-color: rgba(30, 30, 30, 0.7);
+    border-color: rgba(255, 255, 255, 0.1);
+}

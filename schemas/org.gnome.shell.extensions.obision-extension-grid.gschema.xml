@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.obision-extension-grid" path="/org/gnome/shell/extensions/obision-extension-grid/">
+    
+    <key name="grid-columns" type="i">
+      <default>4</default>
+      <range min="2" max="8"/>
+      <summary>Grid Columns</summary>
+      <description>Number of columns in the grid layout</description>
+    </key>
+
+    <key name="grid-rows" type="i">
+      <default>3</default>
+      <range min="2" max="8"/>
+      <summary>Grid Rows</summary>
+      <description>Number of rows in the grid layout</description>
+    </key>
+
+    <key name="show-current-large" type="b">
+      <default>true</default>
+      <summary>Highlight Current Application</summary>
+      <description>Show the focused application in a larger cell (2x2)</description>
+    </key>
+
+    <key name="show-titles" type="b">
+      <default>true</default>
+      <summary>Show Window Titles</summary>
+      <description>Display window titles in the grid cells</description>
+    </key>
+
+    <key name="grid-opacity" type="i">
+      <default>85</default>
+      <range min="0" max="100"/>
+      <summary>Background Opacity</summary>
+      <description>Opacity of the grid overlay background (0-100%)</description>
+    </key>
+
+    <key name="toggle-grid" type="as">
+      <default>['&lt;Super&gt;g']</default>
+      <summary>Toggle Grid Overlay</summary>
+      <description>Keyboard shortcut to show/hide the grid overlay</description>
+    </key>
+
+  </schema>
+</schemalist>

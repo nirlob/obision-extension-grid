@@ -1,0 +1,46 @@
+{
+  "name": "obision-extension-grid",
+  "version": "1.0.0",
+  "description": "A GNOME Shell extension for grid-based window management",
+  "main": "extension.js",
+  "scripts": {
+    "build": "npm run compile-schemas && npm run pack",
+    "compile-schemas": "glib-compile-schemas schemas/",
+    "pack": "gnome-extensions pack --force --extra-source=schemas/ --extra-source=src/",
+    "install": "gnome-extensions install --force obision-extension-grid@obision.com.shell-extension.zip",
+    "enable": "gnome-extensions enable obision-extension-grid@obision.com",
+    "deploy": "npm run build && npm run install && echo '\n✓ Extension installed! Restart GNOME Shell:' && echo '  X11: Alt+F2 → type r → Enter' && echo '  Wayland: Log out and back in' && echo '\nThen run: npm run enable'",
+    "clean": "rm -f *.zip extension.js prefs.js stylesheet.css schemas/gschemas.compiled",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write \"**/*.{js,json,css,md}\"",
+    "format:check": "prettier --check \"**/*.{js,json,css,md}\""
+  },
+  "keywords": [
+    "gnome",
+    "gnome-shell",
+    "extension",
+    "grid",
+    "window-management"
+  ],
+  "author": "Jose Francisco Gonzalez <jfgs1609@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nirlob/obision-extension-grid.git"
+  },
+  "bugs": {
+    "url": "https://github.com/nirlob/obision-extension-grid/issues"
+  },
+  "homepage": "https://github.com/nirlob/obision-extension-grid#readme",
+  "license": "GPL-3.0",
+  "devDependencies": {
+    "@types/gjs": "^4.0.0",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "eslint": "^8.56.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-prettier": "^5.1.0",
+    "prettier": "^3.1.0",
+    "typescript": "^5.3.0"
+  }
+}

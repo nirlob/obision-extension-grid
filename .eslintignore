@@ -1,0 +1,4 @@
+# ESLint ignore patterns
+node_modules/
+*.zip
+schemas/gschemas.compiled
