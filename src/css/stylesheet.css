@@ -23,6 +23,7 @@
     border-radius: 12px;
     padding: 8px;
     transition-duration: 200ms;
+    max-width: 426px;
 }
 
 .stage-manager-thumbnail:hover {
@@ -44,8 +45,9 @@
     background-color: rgba(10, 10, 10, 0.9);
     border-radius: 8px;
     border: 1px solid rgba(255, 255, 255, 0.1);
+    height: 280px;
     min-height: 280px;
-    overflow: hidden;
+    max-height: 280px;
 }
 
 /* Info box with icon and labels */

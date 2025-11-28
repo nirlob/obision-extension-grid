@@ -17,7 +17,7 @@ class WindowThumbnail extends St.Button {
     _init(window, stageManager) {
         super._init({
             style_class: 'stage-manager-thumbnail',
-            x_expand: true,
+            x_expand: false,
         });
 
         this._window = window;
@@ -29,12 +29,11 @@ class WindowThumbnail extends St.Button {
         });
 
         // Window clone container with fixed dimensions
-        this._cloneContainer = new St.Bin({
+        this._cloneContainer = new St.Widget({
             style_class: 'stage-manager-clone-container',
+            layout_manager: new Clutter.BinLayout(),
             height: THUMBNAIL_HEIGHT,
-            x_expand: true,
-            x_align: Clutter.ActorAlign.FILL,
-            y_align: Clutter.ActorAlign.FILL,
+            width: PANEL_WIDTH - PANEL_PADDING * 2 - 24,
             clip_to_allocation: true,
         });
 
@@ -104,28 +103,16 @@ class WindowThumbnail extends St.Button {
             source: windowActor,
         });
 
-        // Get window dimensions
-        const [width, height] = windowActor.get_size();
-        
-        // Calculate scale to fill the entire container while maintaining aspect ratio
-        const containerWidth = PANEL_WIDTH - PANEL_PADDING * 2;
+        // Container dimensions
+        const containerWidth = PANEL_WIDTH - PANEL_PADDING * 2 - 24;
         const containerHeight = THUMBNAIL_HEIGHT;
         
-        // Use cover scaling (fills container, may crop)
-        const scale = Math.max(containerWidth / width, containerHeight / height);
+        // Force the clone to fill the entire container
+        // This is more reliable than using set_scale()
+        clone.set_size(containerWidth, containerHeight);
+        clone.set_position(0, 0);
         
-        // Apply scale
-        clone.set_scale(scale, scale);
-        
-        // Center the clone
-        const scaledWidth = width * scale;
-        const scaledHeight = height * scale;
-        clone.set_position(
-            (containerWidth - scaledWidth) / 2,
-            (containerHeight - scaledHeight) / 2
-        );
-        
-        this._cloneContainer.set_child(clone);
+        this._cloneContainer.add_child(clone);
         this._clone = clone;
     }
 
@@ -301,6 +288,7 @@ export default class ObisionExtensionGrid extends Extension {
 
     _activateStageManager() {
         this._active = true;
+        this._updatePanelPosition(); // Recalculate panel position with dash height
         this._panel.show();
         this._updateLayout();
     }
@@ -313,8 +301,12 @@ export default class ObisionExtensionGrid extends Extension {
 
     _updatePanelPosition() {
         const monitor = Main.layoutManager.primaryMonitor;
-        this._panel.set_position(monitor.x, monitor.y);
-        this._panel.set_height(monitor.height);
+        const panelHeight = this._getDashPanelHeight();
+        
+        // Position panel below top dash/panel
+        this._panel.set_position(monitor.x, monitor.y + panelHeight.top);
+        // Adjust height to fit between top and bottom panels
+        this._panel.set_height(monitor.height - panelHeight.top - panelHeight.bottom);
     }
 
     _updateLayout() {
@@ -352,11 +344,14 @@ export default class ObisionExtensionGrid extends Extension {
             this._originalFrames.set(window, window.get_frame_rect());
         }
 
+        // Detect dash/panel height (top or bottom)
+        const panelHeight = this._getDashPanelHeight();
+        
         // Calculate new frame for active window
         const newX = monitor.x + panelWidth;
-        const newY = monitor.y;
+        const newY = monitor.y + panelHeight.top;
         const newWidth = monitor.width - panelWidth;
-        const newHeight = monitor.height;
+        const newHeight = monitor.height - panelHeight.top - panelHeight.bottom;
 
         // Move and resize window
         window.unmaximize(Meta.MaximizeFlags.BOTH);
@@ -382,5 +377,40 @@ export default class ObisionExtensionGrid extends Extension {
         if (!window.skip_taskbar && window.get_window_type() === Meta.WindowType.NORMAL) {
             this._updateLayout();
         }
+    }
+
+    _getDashPanelHeight() {
+        const result = { top: 0, bottom: 0 };
+        const monitor = Main.layoutManager.primaryMonitor;
+        
+        // Search through all chrome actors to find panels
+        // This works for Dash to Panel and other panel extensions
+        Main.layoutManager._trackedActors.forEach(obj => {
+            const actor = obj.actor;
+            if (!actor || !actor.visible) return;
+            
+            const height = actor.height;
+            const y = actor.y;
+            const width = actor.width;
+            
+            // Look for wide actors that span most of the screen (likely panels)
+            // Panels are typically at least 80% of screen width and have reasonable height
+            const isWideEnough = width >= monitor.width * 0.8;
+            const hasReasonableHeight = height > 20 && height < 200;
+            
+            if (isWideEnough && hasReasonableHeight) {
+                log(`[Stage Manager] Panel-like actor found: ${actor.name}, y=${y}, height=${height}, width=${width}`);
+                
+                // Determine if panel is at top or bottom based on position
+                if (y <= monitor.y + 50) {
+                    result.top = Math.max(result.top, height);
+                } else if (y >= monitor.y + monitor.height - height - 50) {
+                    result.bottom = Math.max(result.bottom, height);
+                }
+            }
+        });
+        
+        log(`[Stage Manager] Final panel heights - top: ${result.top}, bottom: ${result.bottom}`);
+        return result;
     }
 }
