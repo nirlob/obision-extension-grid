@@ -139,7 +139,7 @@ Available settings:
 
 ## Requirements
 
-- GNOME Shell 45 or 46
+- GNOME Shell 48 or later
 - GLib 2.0
 - GTK 4.0
 

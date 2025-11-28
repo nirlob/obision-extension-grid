@@ -3,8 +3,8 @@
   "description": "A GNOME Shell extension for grid-based window management",
   "uuid": "obision-extension-grid@obision.com",
   "shell-version": [
-    "45",
-    "46"
+    "48",
+    "49"
   ],
   "version": 1,
   "url": "https://github.com/nirlob/obision-extension-grid",

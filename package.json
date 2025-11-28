@@ -10,6 +10,8 @@
     "install": "gnome-extensions install --force obision-extension-grid@obision.com.shell-extension.zip",
     "enable": "gnome-extensions enable obision-extension-grid@obision.com",
     "deploy": "npm run build && npm run install && echo '\n✓ Extension installed! Restart GNOME Shell:' && echo '  X11: Alt+F2 → type r → Enter' && echo '  Wayland: Log out and back in' && echo '\nThen run: npm run enable'",
+    "reload": "./reload.sh",
+    "update": "npm run build && npm run install && npm run reload",
     "clean": "rm -f *.zip extension.js prefs.js stylesheet.css schemas/gschemas.compiled",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
