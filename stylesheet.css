@@ -72,8 +72,6 @@
 }
 
 .stage-manager-thumbnail:hover {
-    background-color: rgba(60, 60, 60, 0.9);
-    border-color: rgba(255, 255, 255, 0.3);
     transform: scale(1.03);
 }
 
@@ -87,9 +85,9 @@
 
 /* Clone Container */
 .stage-manager-clone-container {
-    background-color: rgba(10, 10, 10, 0.9);
+    background-color: transparent;
     border-radius: 8px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 2px solid rgba(128, 128, 128, 0.6);
     height: 280px;
     min-height: 280px;
     max-height: 280px;
@@ -119,11 +117,13 @@
 
 /* Bottom Panel (semi-transparent overlay) */
 .stage-manager-thumbnail-bottom-panel {
-    background-color: rgba(255, 0, 0, 0.8);
+    background-color: rgba(40, 40, 40, 0.5);
     height: 48px;
     padding: 8px 12px;
     border-bottom-left-radius: 8px;
     border-bottom-right-radius: 8px;
+    spacing: 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 /* Close Button - GNOME style */

@@ -41,11 +41,6 @@ class WindowThumbnail extends St.Widget {
             style_class: 'stage-manager-thumbnail-box',
         });
 
-        // Container for thumbnail with close button
-        const thumbnailWrapper = new St.Widget({
-            layout_manager: new Clutter.BinLayout(),
-        });
-
         // Window clone container with dynamic dimensions
         const thumbnailWidth = panelWidth - PANEL_PADDING * 2 - 24;
         const thumbnailHeight = calculateThumbnailHeight(panelWidth);
@@ -58,20 +53,40 @@ class WindowThumbnail extends St.Widget {
             clip_to_allocation: true,
         });
 
+        // Create window clone first (will be behind)
+        this._createClone();
+        
         // Bottom panel (semi-transparent overlay at bottom of thumbnail)
+        // Add this AFTER the clone so it appears on top
         this._bottomPanel = new St.BoxLayout({
             style_class: 'stage-manager-thumbnail-bottom-panel',
             vertical: false,
             width: thumbnailWidth,
             height: 48,
         });
+        
+        // App icon inside bottom panel
+        const app = Shell.WindowTracker.get_default().get_window_app(window);
+        if (app) {
+            const icon = app.create_icon_texture(24);
+            if (icon) {
+                icon.style_class = 'stage-manager-app-icon';
+                this._bottomPanel.add_child(icon);
+            }
+        }
+        
+        // App name inside bottom panel
+        this._appLabel = new St.Label({
+            text: app ? app.get_name() : 'Unknown',
+            style_class: 'stage-manager-app-name',
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        this._appLabel.clutter_text.set_ellipsize(3);
+        this._bottomPanel.add_child(this._appLabel);
+        
         // Position at the bottom manually (FixedLayout doesn't respect y_align)
         this._bottomPanel.set_position(0, thumbnailHeight - 48);
         this._cloneContainer.add_child(this._bottomPanel);
-
-        // Create window clone
-        this._createClone();
-        thumbnailWrapper.add_child(this._cloneContainer);
 
         // Close button (using the same style as GNOME window controls)
         const closeIcon = new St.Icon({
@@ -83,12 +98,13 @@ class WindowThumbnail extends St.Widget {
         this._closeButton = new St.Button({
             style_class: 'stage-manager-close-button',
             child: closeIcon,
-            x_align: Clutter.ActorAlign.START,
-            y_align: Clutter.ActorAlign.START,
             reactive: true,
             can_focus: true,
             track_hover: true,
         });
+        
+        // Position close button at top-left
+        this._closeButton.set_position(6, 6);
 
         // Prevent click from propagating to the thumbnail
         this._closeButton.connect('button-press-event', () => {
@@ -104,34 +120,9 @@ class WindowThumbnail extends St.Widget {
             return Clutter.EVENT_STOP;
         });
 
-        thumbnailWrapper.add_child(this._closeButton);
+        this._cloneContainer.add_child(this._closeButton);
 
-        // Info box with icon and app name only
-        const infoBox = new St.BoxLayout({
-            style_class: 'stage-manager-info-box',
-            x_align: Clutter.ActorAlign.START,
-        });
-
-        // App icon
-        const app = Shell.WindowTracker.get_default().get_window_app(window);
-        if (app) {
-            const icon = app.create_icon_texture(24);
-            if (icon) {
-                icon.style_class = 'stage-manager-app-icon';
-                infoBox.add_child(icon);
-            }
-        }
-
-        // App name only (no window title)
-        this._appLabel = new St.Label({
-            text: app ? app.get_name() : 'Unknown',
-            style_class: 'stage-manager-app-name',
-        });
-        this._appLabel.clutter_text.set_ellipsize(3);
-        infoBox.add_child(this._appLabel);
-
-        box.add_child(thumbnailWrapper);
-        box.add_child(infoBox);
+        box.add_child(this._cloneContainer);
         this.add_child(box);
 
         // Click to activate window
