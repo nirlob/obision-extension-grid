@@ -16,11 +16,6 @@ obision-extension-grid@obision.com.shell-extension.zip
 # Compiled schemas
 schemas/gschemas.compiled
 
-# Symlinks (build artifacts)
-/extension.js
-/prefs.js
-/stylesheet.css
-
 # Logs
 *.log
 npm-debug.log*
