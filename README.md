@@ -1,4 +1,4 @@
-# Obision Extension Grid
+# Obision One Win
 
 A GNOME Shell extension for grid-based window management.
 
@@ -20,8 +20,8 @@ A GNOME Shell extension for grid-based window management.
 
 1. Clone this repository:
    ```bash
-   git clone https://github.com/nirlob/obision-extension-grid.git
-   cd obision-extension-grid
+   git clone https://github.com/nirlob/obision-extension-one-win.git
+   cd obision-extension-one-win
    ```
 
 2. Install dependencies:
@@ -38,7 +38,7 @@ A GNOME Shell extension for grid-based window management.
 
 4. Enable the extension:
    ```bash
-   gnome-extensions enable obision-extension-grid@obision.com
+   gnome-extensions enable obision-extension-one-win@obision.com
    ```
 
 5. Restart GNOME Shell:
@@ -50,7 +50,7 @@ A GNOME Shell extension for grid-based window management.
 ### Project Structure
 
 ```
-obision-extension-grid/
+obision-extension-one-win/
 ├── src/
 │   ├── js/
 │   │   ├── extension.js     # Main extension code
@@ -58,7 +58,7 @@ obision-extension-grid/
 │   └── css/
 │       └── stylesheet.css   # Custom styles
 ├── schemas/                 # GSettings schemas
-│   └── org.gnome.shell.extensions.obision-extension-grid.gschema.xml
+│   └── org.gnome.shell.extensions.obision-extension-one-win.gschema.xml
 ├── metadata.json           # Extension metadata
 ├── package.json            # Node.js dependencies and scripts
 ├── tsconfig.json           # TypeScript configuration
@@ -106,8 +106,8 @@ npm run deploy
 
 After making changes, reload the extension:
 ```bash
-gnome-extensions disable obision-extension-grid@obision.com
-gnome-extensions enable obision-extension-grid@obision.com
+gnome-extensions disable obision-extension-one-win@obision.com
+gnome-extensions enable obision-extension-one-win@obision.com
 ```
 
 View logs:
@@ -119,7 +119,7 @@ journalctl -f -o cat /usr/bin/gnome-shell
 
 Open the extension preferences:
 ```bash
-gnome-extensions prefs obision-extension-grid@obision.com
+gnome-extensions prefs obision-extension-one-win@obision.com
 ```
 
 Available settings:
@@ -167,4 +167,4 @@ GPL-3.0
 
 ## Support
 
-For issues and feature requests, please use the [GitHub issue tracker](https://github.com/nirlob/obision-extension-grid/issues).
+For issues and feature requests, please use the [GitHub issue tracker](https://github.com/nirlob/obision-extension-one-win/issues).

@@ -1,16 +1,16 @@
 {
-  "name": "obision-extension-grid",
+  "name": "obision-extension-one-win",
   "version": "1.0.0",
-  "description": "A GNOME Shell extension for grid-based window management",
+  "description": "Obision One Win - A GNOME Shell extension for one window work",
   "main": "extension.js",
   "scripts": {
     "build": "npm run compile-schemas && npm run pack",
     "compile-schemas": "glib-compile-schemas schemas/",
     "pack": "gnome-extensions pack --force --extra-source=schemas/ --extra-source=src/",
-    "install": "gnome-extensions install --force obision-extension-grid@obision.com.shell-extension.zip",
-    "enable": "gnome-extensions enable obision-extension-grid@obision.com",
+    "install": "gnome-extensions install --force obision-extension-one-win@obision.com.shell-extension.zip",
+    "enable": "gnome-extensions enable obision-extension-one-win@obision.com",
     "deploy": "npm run build && npm run install && echo '\n✓ Extension installed! Restart GNOME Shell:' && echo '  X11: Alt+F2 → type r → Enter' && echo '  Wayland: Log out and back in' && echo '\nThen run: npm run enable'",
-    "reload": "./reload.sh",
+    "reload": "./scripts/reload.sh",
     "update": "npm run build && npm run install && npm run reload",
     "clean": "rm -f *.zip extension.js prefs.js stylesheet.css schemas/gschemas.compiled",
     "lint": "eslint .",
@@ -28,21 +28,17 @@
   "author": "Jose Francisco Gonzalez <jfgs1609@gmail.com>",
   "repository": {
     "type": "git",
-    "url": "https://github.com/nirlob/obision-extension-grid.git"
+    "url": "https://github.com/nirlob/obision-extension-one-win.git"
   },
   "bugs": {
-    "url": "https://github.com/nirlob/obision-extension-grid/issues"
+    "url": "https://github.com/nirlob/obision-extension-one-win/issues"
   },
-  "homepage": "https://github.com/nirlob/obision-extension-grid#readme",
+  "homepage": "https://github.com/nirlob/obision-extension-one-win#readme",
   "license": "GPL-3.0",
   "devDependencies": {
-    "@types/gjs": "^4.0.0",
-    "@typescript-eslint/eslint-plugin": "^7.0.0",
-    "@typescript-eslint/parser": "^7.0.0",
     "eslint": "^8.56.0",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-prettier": "^5.1.0",
-    "prettier": "^3.1.0",
-    "typescript": "^5.3.0"
+    "prettier": "^3.1.0"
   }
 }

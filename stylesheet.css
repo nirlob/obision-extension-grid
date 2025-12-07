@@ -1,4 +1,4 @@
-/* Obision Extension Grid - Stage Manager Styles */
+/* Obision One Win - Stage Manager Styles */
 
 /* Side Panel - uses theme-aware background */
 .stage-manager-panel {
@@ -253,10 +253,12 @@
     border-color: rgba(53, 132, 228, 1.0);
     background-color: rgba(53, 132, 228, 0.1);
 }
+
 .stage-manager-thumbnail-active.accent-blue .stage-manager-thumbnail-bottom-panel {
     border-color: rgba(53, 132, 228, 1.0);
     background-color: rgba(53, 132, 228, 0.1);
 }
+
 .stage-manager-thumbnail-active.accent-blue:hover .stage-manager-screenshot-panel,
 .stage-manager-thumbnail-active.accent-blue:hover .stage-manager-thumbnail-bottom-panel {
     border-color: rgba(53, 132, 228, 1.0);
@@ -268,10 +270,12 @@
     border-color: rgba(33, 150, 141, 1.0);
     background-color: rgba(33, 150, 141, 0.1);
 }
+
 .stage-manager-thumbnail-active.accent-teal .stage-manager-thumbnail-bottom-panel {
     border-color: rgba(33, 150, 141, 1.0);
     background-color: rgba(33, 150, 141, 0.1);
 }
+
 .stage-manager-thumbnail-active.accent-teal:hover .stage-manager-screenshot-panel,
 .stage-manager-thumbnail-active.accent-teal:hover .stage-manager-thumbnail-bottom-panel {
     border-color: rgba(33, 150, 141, 1.0);
@@ -283,10 +287,12 @@
     border-color: rgba(46, 160, 67, 1.0);
     background-color: rgba(46, 160, 67, 0.1);
 }
+
 .stage-manager-thumbnail-active.accent-green .stage-manager-thumbnail-bottom-panel {
     border-color: rgba(46, 160, 67, 1.0);
     background-color: rgba(46, 160, 67, 0.1);
 }
+
 .stage-manager-thumbnail-active.accent-green:hover .stage-manager-screenshot-panel,
 .stage-manager-thumbnail-active.accent-green:hover .stage-manager-thumbnail-bottom-panel {
     border-color: rgba(46, 160, 67, 1.0);
@@ -298,10 +304,12 @@
     border-color: rgba(227, 170, 0, 1.0);
     background-color: rgba(227, 170, 0, 0.1);
 }
+
 .stage-manager-thumbnail-active.accent-yellow .stage-manager-thumbnail-bottom-panel {
     border-color: rgba(227, 170, 0, 1.0);
     background-color: rgba(227, 170, 0, 0.1);
 }
+
 .stage-manager-thumbnail-active.accent-yellow:hover .stage-manager-screenshot-panel,
 .stage-manager-thumbnail-active.accent-yellow:hover .stage-manager-thumbnail-bottom-panel {
     border-color: rgba(227, 170, 0, 1.0);
@@ -313,10 +321,12 @@
     border-color: rgba(230, 126, 34, 1.0);
     background-color: rgba(230, 126, 34, 0.1);
 }
+
 .stage-manager-thumbnail-active.accent-orange .stage-manager-thumbnail-bottom-panel {
     border-color: rgba(230, 126, 34, 1.0);
     background-color: rgba(230, 126, 34, 0.1);
 }
+
 .stage-manager-thumbnail-active.accent-orange:hover .stage-manager-screenshot-panel,
 .stage-manager-thumbnail-active.accent-orange:hover .stage-manager-thumbnail-bottom-panel {
     border-color: rgba(230, 126, 34, 1.0);
@@ -328,10 +338,12 @@
     border-color: rgba(224, 81, 81, 1.0);
     background-color: rgba(224, 81, 81, 0.1);
 }
+
 .stage-manager-thumbnail-active.accent-red .stage-manager-thumbnail-bottom-panel {
     border-color: rgba(224, 81, 81, 1.0);
     background-color: rgba(224, 81, 81, 0.1);
 }
+
 .stage-manager-thumbnail-active.accent-red:hover .stage-manager-screenshot-panel,
 .stage-manager-thumbnail-active.accent-red:hover .stage-manager-thumbnail-bottom-panel {
     border-color: rgba(224, 81, 81, 1.0);
@@ -343,10 +355,12 @@
     border-color: rgba(213, 97, 166, 1.0);
     background-color: rgba(213, 97, 166, 0.1);
 }
+
 .stage-manager-thumbnail-active.accent-pink .stage-manager-thumbnail-bottom-panel {
     border-color: rgba(213, 97, 166, 1.0);
     background-color: rgba(213, 97, 166, 0.1);
 }
+
 .stage-manager-thumbnail-active.accent-pink:hover .stage-manager-screenshot-panel,
 .stage-manager-thumbnail-active.accent-pink:hover .stage-manager-thumbnail-bottom-panel {
     border-color: rgba(213, 97, 166, 1.0);
@@ -358,10 +372,12 @@
     border-color: rgba(145, 71, 255, 1.0);
     background-color: rgba(145, 71, 255, 0.1);
 }
+
 .stage-manager-thumbnail-active.accent-purple .stage-manager-thumbnail-bottom-panel {
     border-color: rgba(145, 71, 255, 1.0);
     background-color: rgba(145, 71, 255, 0.1);
 }
+
 .stage-manager-thumbnail-active.accent-purple:hover .stage-manager-screenshot-panel,
 .stage-manager-thumbnail-active.accent-purple:hover .stage-manager-thumbnail-bottom-panel {
     border-color: rgba(145, 71, 255, 1.0);
@@ -373,10 +389,12 @@
     border-color: rgba(98, 111, 128, 1.0);
     background-color: rgba(98, 111, 128, 0.1);
 }
+
 .stage-manager-thumbnail-active.accent-slate .stage-manager-thumbnail-bottom-panel {
     border-color: rgba(98, 111, 128, 1.0);
     background-color: rgba(98, 111, 128, 0.1);
 }
+
 .stage-manager-thumbnail-active.accent-slate:hover .stage-manager-screenshot-panel,
 .stage-manager-thumbnail-active.accent-slate:hover .stage-manager-thumbnail-bottom-panel {
     border-color: rgba(98, 111, 128, 1.0);

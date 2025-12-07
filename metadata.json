@@ -1,12 +1,12 @@
 {
-  "name": "Obision Grid",
+  "name": "Obision One Win",
   "description": "A GNOME Shell extension for grid-based window management",
-  "uuid": "obision-extension-grid@obision.com",
+  "uuid": "obision-extension-one-win@obision.com",
   "shell-version": [
     "48",
     "49"
   ],
   "version": 1,
-  "url": "https://github.com/nirlob/obision-extension-grid",
+  "url": "https://github.com/nirlob/obision-extension-one-win",
   "settings-schema": "org.gnome.shell.extensions.obision-extension-grid"
 }

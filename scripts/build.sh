@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# Build script for Obision Extension Grid
+# Build script for Obision One Win
 
-echo "Building Obision Extension Grid..."
+echo "Building Obision One Win..."
 
 # Compile GSettings schemas
 echo "Compiling schemas..."
@@ -15,4 +15,4 @@ gnome-extensions pack --force \
     --extra-source=src/
 
 echo "Build complete! Extension package created."
-echo "To install, run: gnome-extensions install --force obision-extension-grid@obision.com.shell-extension.zip"
+echo "To install, run: gnome-extensions install --force obision-extension-one-win@obision.com.shell-extension.zip"

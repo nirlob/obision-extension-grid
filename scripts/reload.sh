@@ -2,7 +2,7 @@
 
 # Script to reload the GNOME Shell extension
 
-EXTENSION_UUID="obision-extension-grid@obision.com"
+EXTENSION_UUID="obision-extension-one-win@obision.com"
 
 echo "🔄 Reloading extension..."
 

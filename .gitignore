@@ -11,7 +11,7 @@ node_modules/
 # Build output
 *.zip
 *.shell-extension.zip
-obision-extension-grid@obision.com.shell-extension.zip
+obision-extension-one-win@obision.com.shell-extension.zip
 
 # Compiled schemas
 schemas/gschemas.compiled
@@ -25,8 +25,3 @@ yarn-error.log*
 # OS files
 .DS_Store
 Thumbs.db
-
-# Package manager
-package-lock.json
-yarn.lock
-pnpm-lock.yaml

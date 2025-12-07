@@ -39,798 +39,798 @@ function calculateScreenshotHeight(screenshotWidth) {
 
 // Window thumbnail in the side panel
 const WindowThumbnail = GObject.registerClass(
-class WindowThumbnail extends St.Widget {
-    _init(window, stageManager, panelWidth, resizeHandleWidth) {
-        super._init({
-            style_class: 'stage-manager-thumbnail',
-            layout_manager: new Clutter.FixedLayout(),
-            reactive: true,
-            can_focus: false,
-            track_hover: true,
-        });
-
-        this._window = window;
-        this._stageManager = stageManager;
-        this._panelWidth = panelWidth;
-        this._resizeHandleWidth = resizeHandleWidth;
-
-        // Calculate dimensions
-        const thumbnailWidth = calculateThumbnailWidth(panelWidth, resizeHandleWidth);
-        const screenshotWidth = calculateScreenshotWidth(thumbnailWidth);
-        const screenshotHeight = calculateScreenshotHeight(screenshotWidth);
-        const totalHeight = screenshotHeight + SCREENSHOT_PANEL_PADDING * 2 + BOTTOM_PANEL_HEIGHT;
-        
-        // Set widget size (with extra space for close button overflow)
-        const CLOSE_BUTTON_SIZE = 28;
-        const CLOSE_BUTTON_OFFSET = 12; // How much it overflows
-        this.set_size(thumbnailWidth + CLOSE_BUTTON_OFFSET, totalHeight + CLOSE_BUTTON_OFFSET);
-
-        // Main content container (holds screenshot panel and bottom panel)
-        this._contentBox = new St.BoxLayout({
-            vertical: true,
-            width: thumbnailWidth,
-            height: totalHeight,
-        });
-        this._contentBox.set_position(CLOSE_BUTTON_OFFSET, CLOSE_BUTTON_OFFSET);
-
-        // Screenshot panel (contains the window clone)
-        this._screenshotPanel = new St.Widget({
-            style_class: 'stage-manager-screenshot-panel',
-            layout_manager: new Clutter.FixedLayout(),
-            width: thumbnailWidth,
-            height: screenshotHeight + SCREENSHOT_PANEL_PADDING * 2,
-        });
-
-        // Clone container inside screenshot panel
-        this._cloneContainer = new St.Widget({
-            style_class: 'stage-manager-clone-container',
-            layout_manager: new Clutter.FixedLayout(),
-            height: screenshotHeight,
-            width: screenshotWidth,
-            clip_to_allocation: true,
-        });
-        this._cloneContainer.set_position(SCREENSHOT_PANEL_PADDING, SCREENSHOT_PANEL_PADDING);
-
-        // Create window clone
-        this._createClone();
-        this._screenshotPanel.add_child(this._cloneContainer);
-        this._contentBox.add_child(this._screenshotPanel);
-
-        // Bottom panel with icon and app name
-        this._bottomPanel = new St.BoxLayout({
-            style_class: 'stage-manager-thumbnail-bottom-panel',
-            vertical: false,
-            width: thumbnailWidth,
-            height: BOTTOM_PANEL_HEIGHT,
-        });
-        
-        // App icon inside bottom panel
-        const app = Shell.WindowTracker.get_default().get_window_app(window);
-        if (app) {
-            const icon = app.create_icon_texture(24);
-            if (icon) {
-                icon.style_class = 'stage-manager-app-icon';
-                this._bottomPanel.add_child(icon);
-            }
-        }
-        
-        // App name inside bottom panel
-        this._appLabel = new St.Label({
-            text: app ? app.get_name() : 'Unknown',
-            style_class: 'stage-manager-app-name',
-            y_align: Clutter.ActorAlign.CENTER,
-            x_expand: true,
-        });
-        this._appLabel.clutter_text.set_ellipsize(3);
-        this._bottomPanel.add_child(this._appLabel);
-        
-        this._contentBox.add_child(this._bottomPanel);
-        this.add_child(this._contentBox);
-        
-        // Close button - positioned to overflow top-left corner
-        const closeIcon = new St.Icon({
-            icon_name: 'window-close-symbolic',
-            icon_size: 16,
-            style_class: 'stage-manager-close-icon',
-        });
-        
-        this._closeButton = new St.Button({
-            style_class: 'stage-manager-close-button',
-            child: closeIcon,
-            reactive: true,
-            can_focus: false,
-            track_hover: true,
-            width: CLOSE_BUTTON_SIZE,
-            height: CLOSE_BUTTON_SIZE,
-        });
-        // Position so it overlaps the corner
-        this._closeButton.set_position(0, 0);
-        
-        // Handle close button click
-        this._closeButton.connect('button-release-event', (actor, event) => {
-            if (event.get_button() === 1) {
-                try {
-                    this._window.delete(global.get_current_time());
-                } catch (e) {
-                    log(`Error closing window: ${e}`);
-                }
-                return Clutter.EVENT_STOP;
-            }
-            return Clutter.EVENT_PROPAGATE;
-        });
-        
-        // Prevent click from propagating to the thumbnail
-        this._closeButton.connect('button-press-event', () => {
-            return Clutter.EVENT_STOP;
-        });
-        
-        this.add_child(this._closeButton);
-
-        // Track clicks for single/double click detection
-        this._clickCount = 0;
-        this._clickTimer = null;
-        
-        // Click handling with single/double click detection
-        this.connect('button-press-event', (actor, event) => {
-            if (event.get_button() === 1) {
-                this._clickCount++;
-                
-                if (this._clickCount === 1) {
-                    // Start timer for single click
-                    this._clickTimer = GLib.timeout_add(
-                        GLib.PRIORITY_DEFAULT,
-                        250, // Double click timeout
-                        () => {
-                            if (this._clickCount === 1) {
-                                // Single click
-                                this._handleSingleClick();
-                            }
-                            this._clickCount = 0;
-                            this._clickTimer = null;
-                            return GLib.SOURCE_REMOVE;
-                        }
-                    );
-                } else if (this._clickCount === 2) {
-                    // Double click - cancel single click timer
-                    if (this._clickTimer) {
-                        GLib.source_remove(this._clickTimer);
-                        this._clickTimer = null;
-                    }
-                    this._handleDoubleClick();
-                    this._clickCount = 0;
-                }
-                
-                return Clutter.EVENT_STOP;
-            } else if (event.get_button() === 3) {
-                // Right click - show context menu
-                this._showContextMenu(event);
-                return Clutter.EVENT_STOP;
-            }
-            return Clutter.EVENT_PROPAGATE;
-        });
-    }
-    
-    _showContextMenu(event) {
-        // Get the app for this window
-        const app = Shell.WindowTracker.get_default().get_window_app(this._window);
-        if (!app) return;
-        
-        // Create popup menu
-        if (this._menu) {
-            this._menu.destroy();
-            this._menu = null;
-        }
-        
-        this._menu = new PopupMenu.PopupMenu(this, 0.5, St.Side.RIGHT);
-        Main.uiGroup.add_child(this._menu.actor);
-        this._menu.actor.hide();
-        
-        // Add menu items similar to dash
-        this._menu.addAction('Nueva ventana', () => {
-            app.open_new_window(-1);
-        });
-        
-        this._menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
-        
-        // Close window option
-        this._menu.addAction('Cerrar', () => {
-            this._window.delete(global.get_current_time());
-        });
-        
-        // Show on all workspaces / only this workspace
-        if (this._window.is_on_all_workspaces()) {
-            this._menu.addAction('Solo en este espacio de trabajo', () => {
-                this._window.unstick();
-            });
-        } else {
-            this._menu.addAction('En todos los espacios de trabajo', () => {
-                this._window.stick();
-            });
-        }
-        
-        this._menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
-        
-        // Quit app
-        this._menu.addAction('Salir', () => {
-            app.request_quit();
-        });
-        
-        // Position and open menu
-        const [x, y] = event.get_coords();
-        this._menu.actor.set_position(x, y);
-        this._menu.open();
-    }
-    
-    _handleSingleClick() {
-        const focusWindow = global.display.focus_window;
-        
-        if (this._window === focusWindow) {
-            // Click on active thumbnail - minimize with animation
-            this._minimizeWithAnimation();
-        } else {
-            // Click on inactive thumbnail - activate window with animation
-            this._activateWithAnimation();
-        }
-    }
-    
-    _activateWithAnimation() {
-        try {
-            // Get the current focused window to animate out
-            const currentWindow = global.display.focus_window;
-            if (currentWindow && currentWindow !== this._window) {
-                const currentActor = currentWindow.get_compositor_private();
-                if (currentActor) {
-                    // Slide current window to the right (exit)
-                    const monitor = Main.layoutManager.primaryMonitor;
-                    currentActor.ease({
-                        translation_x: monitor.width,
-                        duration: 200,
-                        mode: Clutter.AnimationMode.EASE_IN_QUAD,
-                        onComplete: () => {
-                            currentActor.translation_x = 0;
-                            currentWindow.minimize();
-                        },
-                    });
-                }
-            }
-            
-            // Unminimize and activate the new window
-            if (this._window.minimized) {
-                this._window.unminimize();
-            }
-            
-            // Prepare entry animation - start from left
-            const newActor = this._window.get_compositor_private();
-            if (newActor) {
-                const monitor = Main.layoutManager.primaryMonitor;
-                newActor.translation_x = -monitor.width;
-                
-                // Slight delay to let the window unminimize
-                GLib.timeout_add(GLib.PRIORITY_DEFAULT, 50, () => {
-                    newActor.ease({
-                        translation_x: 0,
-                        duration: 250,
-                        mode: Clutter.AnimationMode.EASE_OUT_QUAD,
-                    });
-                    return GLib.SOURCE_REMOVE;
-                });
-            }
-            
-            this._window.activate(global.get_current_time());
-        } catch (e) {
-            // Fallback - just activate
-            if (this._window.minimized) {
-                this._window.unminimize();
-            }
-            this._window.activate(global.get_current_time());
-        }
-    }
-    
-    _minimizeWithAnimation() {
-        const actor = this._window.get_compositor_private();
-        if (!actor) {
-            this._window.minimize();
-            return;
-        }
-        
-        const monitor = imports.ui.main.layoutManager.primaryMonitor;
-        if (!monitor) {
-            this._window.minimize();
-            return;
-        }
-        
-        // Slide out to the left
-        actor.ease({
-            translation_x: -actor.width,
-            duration: 200,
-            mode: Clutter.AnimationMode.EASE_IN_QUAD,
-            onComplete: () => {
-                actor.translation_x = 0;
-                this._window.minimize();
-            },
-        });
-    }
-    
-    _handleDoubleClick() {
-        const focusWindow = global.display.focus_window;
-        
-        if (this._window === focusWindow) {
-            // Double click on active thumbnail - maximize
-            this._window.maximize(Meta.MaximizeFlags.BOTH);
-        } else {
-            // Double click on inactive thumbnail - activate and maximize
-            if (this._window.minimized) {
-                this._window.unminimize();
-            }
-            this._window.activate(global.get_current_time());
-            this._window.maximize(Meta.MaximizeFlags.BOTH);
-        }
-    }
-
-    _createClone() {
-        try {
-            const windowActor = this._window.get_compositor_private();
-            if (!windowActor) return;
-
-            const clone = new Clutter.Clone({
-                source: windowActor,
+    class WindowThumbnail extends St.Widget {
+        _init(window, stageManager, panelWidth, resizeHandleWidth) {
+            super._init({
+                style_class: 'stage-manager-thumbnail',
+                layout_manager: new Clutter.FixedLayout(),
+                reactive: true,
+                can_focus: false,
+                track_hover: true,
             });
 
-            // Container dimensions (screenshot area)
-            const thumbnailWidth = calculateThumbnailWidth(this._panelWidth, this._resizeHandleWidth);
-            const containerWidth = calculateScreenshotWidth(thumbnailWidth);
-            const containerHeight = calculateScreenshotHeight(containerWidth);
-            
-            // Get frame rect (visible window without shadows)
-            const frameRect = this._window.get_frame_rect();
-            const bufferRect = this._window.get_buffer_rect();
-            
-            // Calculate shadow/decoration offsets
-            const shadowLeft = Math.abs(frameRect.x - bufferRect.x);
-            const shadowTop = Math.abs(frameRect.y - bufferRect.y);
-            
-            // Use frame rect dimensions (visible window)
-            const windowWidth = frameRect.width;
-            const windowHeight = frameRect.height;
-            
-            // Calculate scale to fit container while maintaining aspect ratio
-            const scaleX = containerWidth / windowWidth;
-            const scaleY = containerHeight / windowHeight;
-            const scale = Math.min(scaleX, scaleY);
-            
-            // Apply scale
-            clone.set_scale(scale, scale);
-            
-            // Calculate position to center the visible window content
-            const scaledWidth = windowWidth * scale;
-            const scaledHeight = windowHeight * scale;
-            
-            // Position considering shadow offsets
-            const x = (containerWidth - scaledWidth) / 2 - (shadowLeft * scale);
-            const y = (containerHeight - scaledHeight) / 2 - (shadowTop * scale);
-            
-            clone.set_position(x, y);
-            
-            this._cloneContainer.add_child(clone);
-            this._clone = clone;
-        } catch (e) {
-            log(`Error creating window clone: ${e}`);
-        }
-    }
-
-    updateSize(panelWidth, resizeHandleWidth) {
-        try {
+            this._window = window;
+            this._stageManager = stageManager;
             this._panelWidth = panelWidth;
             this._resizeHandleWidth = resizeHandleWidth;
-            
+
+            // Calculate dimensions
             const thumbnailWidth = calculateThumbnailWidth(panelWidth, resizeHandleWidth);
             const screenshotWidth = calculateScreenshotWidth(thumbnailWidth);
             const screenshotHeight = calculateScreenshotHeight(screenshotWidth);
             const totalHeight = screenshotHeight + SCREENSHOT_PANEL_PADDING * 2 + BOTTOM_PANEL_HEIGHT;
-            
-            const CLOSE_BUTTON_OFFSET = 12;
+
+            // Set widget size (with extra space for close button overflow)
+            const CLOSE_BUTTON_SIZE = 28;
+            const CLOSE_BUTTON_OFFSET = 12; // How much it overflows
             this.set_size(thumbnailWidth + CLOSE_BUTTON_OFFSET, totalHeight + CLOSE_BUTTON_OFFSET);
-            
-            // Update content box
-            if (this._contentBox) {
-                this._contentBox.set_size(thumbnailWidth, totalHeight);
-                this._contentBox.set_position(CLOSE_BUTTON_OFFSET, CLOSE_BUTTON_OFFSET);
-            }
-            
-            // Update screenshot panel
-            if (this._screenshotPanel) {
-                this._screenshotPanel.set_width(thumbnailWidth);
-                this._screenshotPanel.set_height(screenshotHeight + SCREENSHOT_PANEL_PADDING * 2);
-            }
-            
-            // Update clone container
-            if (this._cloneContainer) {
-                this._cloneContainer.set_width(screenshotWidth);
-                this._cloneContainer.set_height(screenshotHeight);
-            }
-            
-            // Update bottom panel
-            if (this._bottomPanel) {
-                this._bottomPanel.set_width(thumbnailWidth);
-            }
-            
-            if (this._clone) {
-                const windowActor = this._window.get_compositor_private();
-                if (windowActor) {
-                    // Get both rects for proper positioning
-                    const frameRect = this._window.get_frame_rect();
-                    const bufferRect = this._window.get_buffer_rect();
-                    
-                    // Calculate shadow offsets
-                    const shadowLeft = Math.abs(frameRect.x - bufferRect.x);
-                    const shadowTop = Math.abs(frameRect.y - bufferRect.y);
-                    
-                    // Use frame rect dimensions (visible window)
-                    const windowWidth = frameRect.width;
-                    const windowHeight = frameRect.height;
-                    
-                    // Recalculate scale
-                    const scaleX = screenshotWidth / windowWidth;
-                    const scaleY = screenshotHeight / windowHeight;
-                    const scale = Math.min(scaleX, scaleY);
-                    
-                    this._clone.set_scale(scale, scale);
-                    
-                    // Recenter considering shadows
-                    const scaledWidth = windowWidth * scale;
-                    const scaledHeight = windowHeight * scale;
-                    const x = (screenshotWidth - scaledWidth) / 2 - (shadowLeft * scale);
-                    const y = (screenshotHeight - scaledHeight) / 2 - (shadowTop * scale);
-                    this._clone.set_position(x, y);
+
+            // Main content container (holds screenshot panel and bottom panel)
+            this._contentBox = new St.BoxLayout({
+                vertical: true,
+                width: thumbnailWidth,
+                height: totalHeight,
+            });
+            this._contentBox.set_position(CLOSE_BUTTON_OFFSET, CLOSE_BUTTON_OFFSET);
+
+            // Screenshot panel (contains the window clone)
+            this._screenshotPanel = new St.Widget({
+                style_class: 'stage-manager-screenshot-panel',
+                layout_manager: new Clutter.FixedLayout(),
+                width: thumbnailWidth,
+                height: screenshotHeight + SCREENSHOT_PANEL_PADDING * 2,
+            });
+
+            // Clone container inside screenshot panel
+            this._cloneContainer = new St.Widget({
+                style_class: 'stage-manager-clone-container',
+                layout_manager: new Clutter.FixedLayout(),
+                height: screenshotHeight,
+                width: screenshotWidth,
+                clip_to_allocation: true,
+            });
+            this._cloneContainer.set_position(SCREENSHOT_PANEL_PADDING, SCREENSHOT_PANEL_PADDING);
+
+            // Create window clone
+            this._createClone();
+            this._screenshotPanel.add_child(this._cloneContainer);
+            this._contentBox.add_child(this._screenshotPanel);
+
+            // Bottom panel with icon and app name
+            this._bottomPanel = new St.BoxLayout({
+                style_class: 'stage-manager-thumbnail-bottom-panel',
+                vertical: false,
+                width: thumbnailWidth,
+                height: BOTTOM_PANEL_HEIGHT,
+            });
+
+            // App icon inside bottom panel
+            const app = Shell.WindowTracker.get_default().get_window_app(window);
+            if (app) {
+                const icon = app.create_icon_texture(24);
+                if (icon) {
+                    icon.style_class = 'stage-manager-app-icon';
+                    this._bottomPanel.add_child(icon);
                 }
             }
-        } catch (e) {
-            log(`Error updating thumbnail size: ${e}`);
-        }
-    }
 
-    destroy() {
-        try {
+            // App name inside bottom panel
+            this._appLabel = new St.Label({
+                text: app ? app.get_name() : 'Unknown',
+                style_class: 'stage-manager-app-name',
+                y_align: Clutter.ActorAlign.CENTER,
+                x_expand: true,
+            });
+            this._appLabel.clutter_text.set_ellipsize(3);
+            this._bottomPanel.add_child(this._appLabel);
+
+            this._contentBox.add_child(this._bottomPanel);
+            this.add_child(this._contentBox);
+
+            // Close button - positioned to overflow top-left corner
+            const closeIcon = new St.Icon({
+                icon_name: 'window-close-symbolic',
+                icon_size: 16,
+                style_class: 'stage-manager-close-icon',
+            });
+
+            this._closeButton = new St.Button({
+                style_class: 'stage-manager-close-button',
+                child: closeIcon,
+                reactive: true,
+                can_focus: false,
+                track_hover: true,
+                width: CLOSE_BUTTON_SIZE,
+                height: CLOSE_BUTTON_SIZE,
+            });
+            // Position so it overlaps the corner
+            this._closeButton.set_position(0, 0);
+
+            // Handle close button click
+            this._closeButton.connect('button-release-event', (actor, event) => {
+                if (event.get_button() === 1) {
+                    try {
+                        this._window.delete(global.get_current_time());
+                    } catch (e) {
+                        log(`Error closing window: ${e}`);
+                    }
+                    return Clutter.EVENT_STOP;
+                }
+                return Clutter.EVENT_PROPAGATE;
+            });
+
+            // Prevent click from propagating to the thumbnail
+            this._closeButton.connect('button-press-event', () => {
+                return Clutter.EVENT_STOP;
+            });
+
+            this.add_child(this._closeButton);
+
+            // Track clicks for single/double click detection
+            this._clickCount = 0;
+            this._clickTimer = null;
+
+            // Click handling with single/double click detection
+            this.connect('button-press-event', (actor, event) => {
+                if (event.get_button() === 1) {
+                    this._clickCount++;
+
+                    if (this._clickCount === 1) {
+                        // Start timer for single click
+                        this._clickTimer = GLib.timeout_add(
+                            GLib.PRIORITY_DEFAULT,
+                            250, // Double click timeout
+                            () => {
+                                if (this._clickCount === 1) {
+                                    // Single click
+                                    this._handleSingleClick();
+                                }
+                                this._clickCount = 0;
+                                this._clickTimer = null;
+                                return GLib.SOURCE_REMOVE;
+                            }
+                        );
+                    } else if (this._clickCount === 2) {
+                        // Double click - cancel single click timer
+                        if (this._clickTimer) {
+                            GLib.source_remove(this._clickTimer);
+                            this._clickTimer = null;
+                        }
+                        this._handleDoubleClick();
+                        this._clickCount = 0;
+                    }
+
+                    return Clutter.EVENT_STOP;
+                } else if (event.get_button() === 3) {
+                    // Right click - show context menu
+                    this._showContextMenu(event);
+                    return Clutter.EVENT_STOP;
+                }
+                return Clutter.EVENT_PROPAGATE;
+            });
+        }
+
+        _showContextMenu(event) {
+            // Get the app for this window
+            const app = Shell.WindowTracker.get_default().get_window_app(this._window);
+            if (!app) return;
+
+            // Create popup menu
             if (this._menu) {
                 this._menu.destroy();
                 this._menu = null;
             }
-            if (this._clickTimer) {
-                GLib.source_remove(this._clickTimer);
-                this._clickTimer = null;
+
+            this._menu = new PopupMenu.PopupMenu(this, 0.5, St.Side.RIGHT);
+            Main.uiGroup.add_child(this._menu.actor);
+            this._menu.actor.hide();
+
+            // Add menu items similar to dash
+            this._menu.addAction('Nueva ventana', () => {
+                app.open_new_window(-1);
+            });
+
+            this._menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+
+            // Close window option
+            this._menu.addAction('Cerrar', () => {
+                this._window.delete(global.get_current_time());
+            });
+
+            // Show on all workspaces / only this workspace
+            if (this._window.is_on_all_workspaces()) {
+                this._menu.addAction('Solo en este espacio de trabajo', () => {
+                    this._window.unstick();
+                });
+            } else {
+                this._menu.addAction('En todos los espacios de trabajo', () => {
+                    this._window.stick();
+                });
             }
-            if (this._closeButton) {
-                this._closeButton = null;
-            }
-            if (this._clone) {
-                this._clone = null;
-            }
-        } catch (e) {
-            log(`Error destroying thumbnail: ${e}`);
+
+            this._menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+
+            // Quit app
+            this._menu.addAction('Salir', () => {
+                app.request_quit();
+            });
+
+            // Position and open menu
+            const [x, y] = event.get_coords();
+            this._menu.actor.set_position(x, y);
+            this._menu.open();
         }
-        super.destroy();
-    }
-});
+
+        _handleSingleClick() {
+            const focusWindow = global.display.focus_window;
+
+            if (this._window === focusWindow) {
+                // Click on active thumbnail - minimize with animation
+                this._minimizeWithAnimation();
+            } else {
+                // Click on inactive thumbnail - activate window with animation
+                this._activateWithAnimation();
+            }
+        }
+
+        _activateWithAnimation() {
+            try {
+                // Get the current focused window to animate out
+                const currentWindow = global.display.focus_window;
+                if (currentWindow && currentWindow !== this._window) {
+                    const currentActor = currentWindow.get_compositor_private();
+                    if (currentActor) {
+                        // Slide current window to the right (exit)
+                        const monitor = Main.layoutManager.primaryMonitor;
+                        currentActor.ease({
+                            translation_x: monitor.width,
+                            duration: 200,
+                            mode: Clutter.AnimationMode.EASE_IN_QUAD,
+                            onComplete: () => {
+                                currentActor.translation_x = 0;
+                                currentWindow.minimize();
+                            },
+                        });
+                    }
+                }
+
+                // Unminimize and activate the new window
+                if (this._window.minimized) {
+                    this._window.unminimize();
+                }
+
+                // Prepare entry animation - start from left
+                const newActor = this._window.get_compositor_private();
+                if (newActor) {
+                    const monitor = Main.layoutManager.primaryMonitor;
+                    newActor.translation_x = -monitor.width;
+
+                    // Slight delay to let the window unminimize
+                    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 50, () => {
+                        newActor.ease({
+                            translation_x: 0,
+                            duration: 250,
+                            mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+                        });
+                        return GLib.SOURCE_REMOVE;
+                    });
+                }
+
+                this._window.activate(global.get_current_time());
+            } catch (e) {
+                // Fallback - just activate
+                if (this._window.minimized) {
+                    this._window.unminimize();
+                }
+                this._window.activate(global.get_current_time());
+            }
+        }
+
+        _minimizeWithAnimation() {
+            const actor = this._window.get_compositor_private();
+            if (!actor) {
+                this._window.minimize();
+                return;
+            }
+
+            const monitor = imports.ui.main.layoutManager.primaryMonitor;
+            if (!monitor) {
+                this._window.minimize();
+                return;
+            }
+
+            // Slide out to the left
+            actor.ease({
+                translation_x: -actor.width,
+                duration: 200,
+                mode: Clutter.AnimationMode.EASE_IN_QUAD,
+                onComplete: () => {
+                    actor.translation_x = 0;
+                    this._window.minimize();
+                },
+            });
+        }
+
+        _handleDoubleClick() {
+            const focusWindow = global.display.focus_window;
+
+            if (this._window === focusWindow) {
+                // Double click on active thumbnail - maximize
+                this._window.maximize(Meta.MaximizeFlags.BOTH);
+            } else {
+                // Double click on inactive thumbnail - activate and maximize
+                if (this._window.minimized) {
+                    this._window.unminimize();
+                }
+                this._window.activate(global.get_current_time());
+                this._window.maximize(Meta.MaximizeFlags.BOTH);
+            }
+        }
+
+        _createClone() {
+            try {
+                const windowActor = this._window.get_compositor_private();
+                if (!windowActor) return;
+
+                const clone = new Clutter.Clone({
+                    source: windowActor,
+                });
+
+                // Container dimensions (screenshot area)
+                const thumbnailWidth = calculateThumbnailWidth(this._panelWidth, this._resizeHandleWidth);
+                const containerWidth = calculateScreenshotWidth(thumbnailWidth);
+                const containerHeight = calculateScreenshotHeight(containerWidth);
+
+                // Get frame rect (visible window without shadows)
+                const frameRect = this._window.get_frame_rect();
+                const bufferRect = this._window.get_buffer_rect();
+
+                // Calculate shadow/decoration offsets
+                const shadowLeft = Math.abs(frameRect.x - bufferRect.x);
+                const shadowTop = Math.abs(frameRect.y - bufferRect.y);
+
+                // Use frame rect dimensions (visible window)
+                const windowWidth = frameRect.width;
+                const windowHeight = frameRect.height;
+
+                // Calculate scale to fit container while maintaining aspect ratio
+                const scaleX = containerWidth / windowWidth;
+                const scaleY = containerHeight / windowHeight;
+                const scale = Math.min(scaleX, scaleY);
+
+                // Apply scale
+                clone.set_scale(scale, scale);
+
+                // Calculate position to center the visible window content
+                const scaledWidth = windowWidth * scale;
+                const scaledHeight = windowHeight * scale;
+
+                // Position considering shadow offsets
+                const x = (containerWidth - scaledWidth) / 2 - (shadowLeft * scale);
+                const y = (containerHeight - scaledHeight) / 2 - (shadowTop * scale);
+
+                clone.set_position(x, y);
+
+                this._cloneContainer.add_child(clone);
+                this._clone = clone;
+            } catch (e) {
+                log(`Error creating window clone: ${e}`);
+            }
+        }
+
+        updateSize(panelWidth, resizeHandleWidth) {
+            try {
+                this._panelWidth = panelWidth;
+                this._resizeHandleWidth = resizeHandleWidth;
+
+                const thumbnailWidth = calculateThumbnailWidth(panelWidth, resizeHandleWidth);
+                const screenshotWidth = calculateScreenshotWidth(thumbnailWidth);
+                const screenshotHeight = calculateScreenshotHeight(screenshotWidth);
+                const totalHeight = screenshotHeight + SCREENSHOT_PANEL_PADDING * 2 + BOTTOM_PANEL_HEIGHT;
+
+                const CLOSE_BUTTON_OFFSET = 12;
+                this.set_size(thumbnailWidth + CLOSE_BUTTON_OFFSET, totalHeight + CLOSE_BUTTON_OFFSET);
+
+                // Update content box
+                if (this._contentBox) {
+                    this._contentBox.set_size(thumbnailWidth, totalHeight);
+                    this._contentBox.set_position(CLOSE_BUTTON_OFFSET, CLOSE_BUTTON_OFFSET);
+                }
+
+                // Update screenshot panel
+                if (this._screenshotPanel) {
+                    this._screenshotPanel.set_width(thumbnailWidth);
+                    this._screenshotPanel.set_height(screenshotHeight + SCREENSHOT_PANEL_PADDING * 2);
+                }
+
+                // Update clone container
+                if (this._cloneContainer) {
+                    this._cloneContainer.set_width(screenshotWidth);
+                    this._cloneContainer.set_height(screenshotHeight);
+                }
+
+                // Update bottom panel
+                if (this._bottomPanel) {
+                    this._bottomPanel.set_width(thumbnailWidth);
+                }
+
+                if (this._clone) {
+                    const windowActor = this._window.get_compositor_private();
+                    if (windowActor) {
+                        // Get both rects for proper positioning
+                        const frameRect = this._window.get_frame_rect();
+                        const bufferRect = this._window.get_buffer_rect();
+
+                        // Calculate shadow offsets
+                        const shadowLeft = Math.abs(frameRect.x - bufferRect.x);
+                        const shadowTop = Math.abs(frameRect.y - bufferRect.y);
+
+                        // Use frame rect dimensions (visible window)
+                        const windowWidth = frameRect.width;
+                        const windowHeight = frameRect.height;
+
+                        // Recalculate scale
+                        const scaleX = screenshotWidth / windowWidth;
+                        const scaleY = screenshotHeight / windowHeight;
+                        const scale = Math.min(scaleX, scaleY);
+
+                        this._clone.set_scale(scale, scale);
+
+                        // Recenter considering shadows
+                        const scaledWidth = windowWidth * scale;
+                        const scaledHeight = windowHeight * scale;
+                        const x = (screenshotWidth - scaledWidth) / 2 - (shadowLeft * scale);
+                        const y = (screenshotHeight - scaledHeight) / 2 - (shadowTop * scale);
+                        this._clone.set_position(x, y);
+                    }
+                }
+            } catch (e) {
+                log(`Error updating thumbnail size: ${e}`);
+            }
+        }
+
+        destroy() {
+            try {
+                if (this._menu) {
+                    this._menu.destroy();
+                    this._menu = null;
+                }
+                if (this._clickTimer) {
+                    GLib.source_remove(this._clickTimer);
+                    this._clickTimer = null;
+                }
+                if (this._closeButton) {
+                    this._closeButton = null;
+                }
+                if (this._clone) {
+                    this._clone = null;
+                }
+            } catch (e) {
+                log(`Error destroying thumbnail: ${e}`);
+            }
+            super.destroy();
+        }
+    });
 
 // Side panel with window thumbnails
 const StageManagerPanel = GObject.registerClass(
-class StageManagerPanel extends St.BoxLayout {
-    _init(extension) {
-        const panelWidth = extension._settings.get_int('panel-width');
-        
-        super._init({
-            name: 'stage-manager-panel',
-            vertical: false,
-            style_class: 'stage-manager-panel',
-            width: panelWidth,
-            y_align: Clutter.ActorAlign.START,
-        });
+    class StageManagerPanel extends St.BoxLayout {
+        _init(extension) {
+            const panelWidth = extension._settings.get_int('panel-width');
 
-        this._extension = extension;
-        this._settings = extension._settings;
-        this._thumbnails = [];
-        this._panelWidth = panelWidth;
-        this._resizeHandleWidth = RESIZE_HANDLE_WIDTH;
-        
-        // Detect and apply theme variant
-        this._applyThemeVariant();
-
-        // Scroll view for thumbnails (takes most space)
-        this._scrollView = new St.ScrollView({
-            style_class: 'stage-manager-scroll',
-            x_expand: true,
-            y_expand: true,
-            hscrollbar_policy: St.PolicyType.NEVER,
-            vscrollbar_policy: St.PolicyType.AUTOMATIC,
-        });
-
-        this._thumbnailBox = new St.BoxLayout({
-            vertical: true,
-            style_class: 'stage-manager-thumbnail-container',
-            x_expand: true,
-        });
-
-        this._scrollView.add_child(this._thumbnailBox);
-        this.add_child(this._scrollView);
-
-        // Resize handle - inside the panel, aligned to the right edge
-        this._resizeHandle = new St.BoxLayout({
-            style_class: 'stage-manager-resize-handle',
-            vertical: true,
-            reactive: true,
-            track_hover: true,
-            width: this._resizeHandleWidth,
-            x_expand: false,
-            y_expand: true,
-            y_align: Clutter.ActorAlign.FILL,
-        });
-        
-        // Add grip dots to resize handle
-        const gripContainer = new St.BoxLayout({
-            vertical: true,
-            y_align: Clutter.ActorAlign.CENTER,
-            y_expand: true,
-            style_class: 'stage-manager-grip-container',
-        });
-        
-        // Add 3 grip dots
-        for (let i = 0; i < 3; i++) {
-            const dot = new St.Widget({
-                style_class: 'stage-manager-grip-dot',
-                width: 4,
-                height: 4,
+            super._init({
+                name: 'stage-manager-panel',
+                vertical: false,
+                style_class: 'stage-manager-panel',
+                width: panelWidth,
+                y_align: Clutter.ActorAlign.START,
             });
-            gripContainer.add_child(dot);
-        }
-        
-        this._resizeHandle.add_child(gripContainer);
-        this.add_child(this._resizeHandle);
 
-        // Resize functionality
-        this._setupResizing();
-    }
-    
-    _applyThemeVariant() {
-        // Get the interface settings to detect color scheme
-        try {
-            const settings = new Gio.Settings({ schema: 'org.gnome.desktop.interface' });
-            const colorScheme = settings.get_string('color-scheme');
-            
-            // Remove existing theme class
-            this.remove_style_class_name('stage-manager-panel-light');
-            
-            // Apply light theme class if using light mode
-            if (colorScheme === 'prefer-light') {
-                this.add_style_class_name('stage-manager-panel-light');
+            this._extension = extension;
+            this._settings = extension._settings;
+            this._thumbnails = [];
+            this._panelWidth = panelWidth;
+            this._resizeHandleWidth = RESIZE_HANDLE_WIDTH;
+
+            // Detect and apply theme variant
+            this._applyThemeVariant();
+
+            // Scroll view for thumbnails (takes most space)
+            this._scrollView = new St.ScrollView({
+                style_class: 'stage-manager-scroll',
+                x_expand: true,
+                y_expand: true,
+                hscrollbar_policy: St.PolicyType.NEVER,
+                vscrollbar_policy: St.PolicyType.AUTOMATIC,
+            });
+
+            this._thumbnailBox = new St.BoxLayout({
+                vertical: true,
+                style_class: 'stage-manager-thumbnail-container',
+                x_expand: true,
+            });
+
+            this._scrollView.add_child(this._thumbnailBox);
+            this.add_child(this._scrollView);
+
+            // Resize handle - inside the panel, aligned to the right edge
+            this._resizeHandle = new St.BoxLayout({
+                style_class: 'stage-manager-resize-handle',
+                vertical: true,
+                reactive: true,
+                track_hover: true,
+                width: this._resizeHandleWidth,
+                x_expand: false,
+                y_expand: true,
+                y_align: Clutter.ActorAlign.FILL,
+            });
+
+            // Add grip dots to resize handle
+            const gripContainer = new St.BoxLayout({
+                vertical: true,
+                y_align: Clutter.ActorAlign.CENTER,
+                y_expand: true,
+                style_class: 'stage-manager-grip-container',
+            });
+
+            // Add 3 grip dots
+            for (let i = 0; i < 3; i++) {
+                const dot = new St.Widget({
+                    style_class: 'stage-manager-grip-dot',
+                    width: 4,
+                    height: 4,
+                });
+                gripContainer.add_child(dot);
             }
-            
-            // Listen for theme changes
-            this._themeChangedId = settings.connect('changed::color-scheme', () => {
-                const newScheme = settings.get_string('color-scheme');
+
+            this._resizeHandle.add_child(gripContainer);
+            this.add_child(this._resizeHandle);
+
+            // Resize functionality
+            this._setupResizing();
+        }
+
+        _applyThemeVariant() {
+            // Get the interface settings to detect color scheme
+            try {
+                const settings = new Gio.Settings({ schema: 'org.gnome.desktop.interface' });
+                const colorScheme = settings.get_string('color-scheme');
+
+                // Remove existing theme class
                 this.remove_style_class_name('stage-manager-panel-light');
-                if (newScheme === 'prefer-light') {
+
+                // Apply light theme class if using light mode
+                if (colorScheme === 'prefer-light') {
                     this.add_style_class_name('stage-manager-panel-light');
                 }
-            });
-            
-            this._interfaceSettings = settings;
-        } catch (e) {
-            log(`Error detecting theme: ${e}`);
-        }
-    }
 
-    _setupResizing() {
-        this._dragging = false;
-        this._dragStartX = 0;
-        this._dragStartWidth = 0;
-
-        // Change cursor on hover (only if not already dragging)
-        this._resizeHandle.connect('enter-event', () => {
-            if (!this._dragging) {
-                try {
-                    global.display.set_cursor(Meta.Cursor.CROSSHAIR);
-                } catch (e) {
-                    log(`Error setting cursor: ${e}`);
-                }
-            }
-            return Clutter.EVENT_PROPAGATE;
-        });
-
-        this._resizeHandle.connect('leave-event', () => {
-            if (!this._dragging) {
-                try {
-                    global.display.set_cursor(Meta.Cursor.DEFAULT);
-                } catch (e) {
-                    log(`Error resetting cursor: ${e}`);
-                }
-            }
-            return Clutter.EVENT_PROPAGATE;
-        });
-
-        this._resizeHandle.connect('button-press-event', (actor, event) => {
-            if (event.get_button() === 1) {
-                try {
-                    // Store reference to current focus window before drag
-                    this._focusWindowBeforeDrag = global.display.focus_window;
-                    
-                    this._dragging = true;
-                    [this._dragStartX] = event.get_coords();
-                    this._dragStartWidth = this._panelWidth;
-                    
-                    global.display.set_cursor(Meta.Cursor.CROSSHAIR);
-                } catch (e) {
-                    log(`Error in button-press: ${e}`);
-                    this._dragging = false;
-                }
-                
-                return Clutter.EVENT_STOP;
-            }
-            return Clutter.EVENT_PROPAGATE;
-        });
-        
-        // Also handle button release on the resize handle itself
-        this._resizeHandle.connect('button-release-event', (actor, event) => {
-            if (event.get_button() === 1) {
-                if (this._dragging) {
-                    this._endResize();
-                }
-                return Clutter.EVENT_STOP;
-            }
-            return Clutter.EVENT_PROPAGATE;
-        });
-
-        // Listen to motion on global stage when dragging
-        this._stageMotionId = global.stage.connect('captured-event', (actor, event) => {
-            if (!this._dragging) return Clutter.EVENT_PROPAGATE;
-            
-            if (event.type() === Clutter.EventType.MOTION) {
-                const [currentX] = event.get_coords();
-                const deltaX = currentX - this._dragStartX;
-                const newWidth = Math.min(MAX_PANEL_WIDTH, 
-                                         Math.max(MIN_PANEL_WIDTH, 
-                                                 this._dragStartWidth + deltaX));
-                
-                // Only update panel width during drag, don't adjust windows
-                this.setPanelWidth(newWidth);
-                
-                return Clutter.EVENT_STOP;
-            } else if (event.type() === Clutter.EventType.BUTTON_RELEASE && 
-                       event.get_button() === 1) {
-                this._endResize();
-                return Clutter.EVENT_STOP;
-            }
-            
-            return Clutter.EVENT_PROPAGATE;
-        });
-    }
-    
-    _endResize() {
-        if (!this._dragging) return;
-        
-        this._dragging = false;
-        
-        try {
-            global.display.set_cursor(Meta.Cursor.DEFAULT);
-        } catch (e) {
-            log(`Error resetting cursor on release: ${e}`);
-        }
-        
-        try {
-            // Save the new width to settings
-            if (this._settings) {
-                this._settings.set_int('panel-width', this._panelWidth);
-            }
-            
-            // Restore focus to the window that was active before drag and adjust it
-            if (this._extension && this._extension._active && this._focusWindowBeforeDrag) {
-                const focusWindow = this._focusWindowBeforeDrag;
-                if (focusWindow && !focusWindow.skip_taskbar && 
-                    focusWindow.get_window_type() === Meta.WindowType.NORMAL &&
-                    focusWindow.get_maximized() === 0) {
-                    // Re-activate the window to restore focus
-                    focusWindow.activate(global.get_current_time());
-                    this._extension._adjustActiveWindow(focusWindow);
-                }
-            }
-            this._focusWindowBeforeDrag = null;
-        } catch (e) {
-            log(`Error in end resize: ${e}`);
-        }
-    }
-
-    setPanelWidth(width) {
-        this._panelWidth = width;
-        this.set_width(width);
-        
-        // Update all thumbnails
-        this._thumbnails.forEach(thumbnail => {
-            thumbnail.updateSize(width, this._resizeHandleWidth);
-        });
-    }
-
-    updateThumbnails() {
-        try {
-            // Clear existing thumbnails
-            this._thumbnailBox.destroy_all_children();
-            this._thumbnails = [];
-
-            const workspace = global.workspace_manager.get_active_workspace();
-            if (!workspace) return;
-
-            const windows = workspace.list_windows().filter(w =>
-                w && !w.skip_taskbar && w.get_window_type() === Meta.WindowType.NORMAL
-            );
-
-            const focusWindow = global.display.focus_window;
-            
-            // Get accent color from settings
-            const accentColor = this._getAccentColor();
-
-            // Add thumbnails for all windows (including active one)
-            windows.forEach(window => {
-                try {
-                    const thumbnail = new WindowThumbnail(window, this._extension, this._panelWidth, this._resizeHandleWidth);
-                    // Mark active window
-                    if (window === focusWindow) {
-                        thumbnail.add_style_class_name('stage-manager-thumbnail-active');
-                        thumbnail.add_style_class_name(`accent-${accentColor}`);
+                // Listen for theme changes
+                this._themeChangedId = settings.connect('changed::color-scheme', () => {
+                    const newScheme = settings.get_string('color-scheme');
+                    this.remove_style_class_name('stage-manager-panel-light');
+                    if (newScheme === 'prefer-light') {
+                        this.add_style_class_name('stage-manager-panel-light');
                     }
-                    this._thumbnailBox.add_child(thumbnail);
-                    this._thumbnails.push(thumbnail);
-                } catch (e) {
-                    log(`Error creating thumbnail for window: ${e}`);
-                }
-            });
-        } catch (e) {
-            log(`Error updating thumbnails: ${e}`);
-        }
-    }
-    
-    _getAccentColor() {
-        try {
-            const settings = new Gio.Settings({ schema: 'org.gnome.desktop.interface' });
-            const accentColor = settings.get_string('accent-color');
-            // Valid accent colors: blue, teal, green, yellow, orange, red, pink, purple, slate
-            const validColors = ['blue', 'teal', 'green', 'yellow', 'orange', 'red', 'pink', 'purple', 'slate'];
-            if (validColors.includes(accentColor)) {
-                return accentColor;
-            }
-            return 'blue'; // Default fallback
-        } catch (e) {
-            log(`Error getting accent color: ${e}`);
-            return 'blue';
-        }
-    }
+                });
 
-    destroy() {
-        try {
-            // Disconnect theme listener
-            if (this._themeChangedId && this._interfaceSettings) {
-                this._interfaceSettings.disconnect(this._themeChangedId);
-                this._themeChangedId = null;
-                this._interfaceSettings = null;
+                this._interfaceSettings = settings;
+            } catch (e) {
+                log(`Error detecting theme: ${e}`);
             }
-            
-            // Disconnect stage handlers
-            if (this._stageMotionId) {
-                global.stage.disconnect(this._stageMotionId);
-                this._stageMotionId = null;
-            }
-            
-            this._dragging = false;
-            this._extension = null;
-            this._settings = null;
-            this._thumbnails = [];
-            
-            if (this._resizeHandle) {
-                this._resizeHandle = null;
-            }
-        } catch (e) {
-            log(`Error destroying panel: ${e}`);
         }
-        super.destroy();
-    }
-});
+
+        _setupResizing() {
+            this._dragging = false;
+            this._dragStartX = 0;
+            this._dragStartWidth = 0;
+
+            // Change cursor on hover (only if not already dragging)
+            this._resizeHandle.connect('enter-event', () => {
+                if (!this._dragging) {
+                    try {
+                        global.display.set_cursor(Meta.Cursor.CROSSHAIR);
+                    } catch (e) {
+                        log(`Error setting cursor: ${e}`);
+                    }
+                }
+                return Clutter.EVENT_PROPAGATE;
+            });
+
+            this._resizeHandle.connect('leave-event', () => {
+                if (!this._dragging) {
+                    try {
+                        global.display.set_cursor(Meta.Cursor.DEFAULT);
+                    } catch (e) {
+                        log(`Error resetting cursor: ${e}`);
+                    }
+                }
+                return Clutter.EVENT_PROPAGATE;
+            });
+
+            this._resizeHandle.connect('button-press-event', (actor, event) => {
+                if (event.get_button() === 1) {
+                    try {
+                        // Store reference to current focus window before drag
+                        this._focusWindowBeforeDrag = global.display.focus_window;
+
+                        this._dragging = true;
+                        [this._dragStartX] = event.get_coords();
+                        this._dragStartWidth = this._panelWidth;
+
+                        global.display.set_cursor(Meta.Cursor.CROSSHAIR);
+                    } catch (e) {
+                        log(`Error in button-press: ${e}`);
+                        this._dragging = false;
+                    }
+
+                    return Clutter.EVENT_STOP;
+                }
+                return Clutter.EVENT_PROPAGATE;
+            });
+
+            // Also handle button release on the resize handle itself
+            this._resizeHandle.connect('button-release-event', (actor, event) => {
+                if (event.get_button() === 1) {
+                    if (this._dragging) {
+                        this._endResize();
+                    }
+                    return Clutter.EVENT_STOP;
+                }
+                return Clutter.EVENT_PROPAGATE;
+            });
+
+            // Listen to motion on global stage when dragging
+            this._stageMotionId = global.stage.connect('captured-event', (actor, event) => {
+                if (!this._dragging) return Clutter.EVENT_PROPAGATE;
+
+                if (event.type() === Clutter.EventType.MOTION) {
+                    const [currentX] = event.get_coords();
+                    const deltaX = currentX - this._dragStartX;
+                    const newWidth = Math.min(MAX_PANEL_WIDTH,
+                        Math.max(MIN_PANEL_WIDTH,
+                            this._dragStartWidth + deltaX));
+
+                    // Only update panel width during drag, don't adjust windows
+                    this.setPanelWidth(newWidth);
+
+                    return Clutter.EVENT_STOP;
+                } else if (event.type() === Clutter.EventType.BUTTON_RELEASE &&
+                    event.get_button() === 1) {
+                    this._endResize();
+                    return Clutter.EVENT_STOP;
+                }
+
+                return Clutter.EVENT_PROPAGATE;
+            });
+        }
+
+        _endResize() {
+            if (!this._dragging) return;
+
+            this._dragging = false;
+
+            try {
+                global.display.set_cursor(Meta.Cursor.DEFAULT);
+            } catch (e) {
+                log(`Error resetting cursor on release: ${e}`);
+            }
+
+            try {
+                // Save the new width to settings
+                if (this._settings) {
+                    this._settings.set_int('panel-width', this._panelWidth);
+                }
+
+                // Restore focus to the window that was active before drag and adjust it
+                if (this._extension && this._extension._active && this._focusWindowBeforeDrag) {
+                    const focusWindow = this._focusWindowBeforeDrag;
+                    if (focusWindow && !focusWindow.skip_taskbar &&
+                        focusWindow.get_window_type() === Meta.WindowType.NORMAL &&
+                        focusWindow.get_maximized() === 0) {
+                        // Re-activate the window to restore focus
+                        focusWindow.activate(global.get_current_time());
+                        this._extension._adjustActiveWindow(focusWindow);
+                    }
+                }
+                this._focusWindowBeforeDrag = null;
+            } catch (e) {
+                log(`Error in end resize: ${e}`);
+            }
+        }
+
+        setPanelWidth(width) {
+            this._panelWidth = width;
+            this.set_width(width);
+
+            // Update all thumbnails
+            this._thumbnails.forEach(thumbnail => {
+                thumbnail.updateSize(width, this._resizeHandleWidth);
+            });
+        }
+
+        updateThumbnails() {
+            try {
+                // Clear existing thumbnails
+                this._thumbnailBox.destroy_all_children();
+                this._thumbnails = [];
+
+                const workspace = global.workspace_manager.get_active_workspace();
+                if (!workspace) return;
+
+                const windows = workspace.list_windows().filter(w =>
+                    w && !w.skip_taskbar && w.get_window_type() === Meta.WindowType.NORMAL
+                );
+
+                const focusWindow = global.display.focus_window;
+
+                // Get accent color from settings
+                const accentColor = this._getAccentColor();
+
+                // Add thumbnails for all windows (including active one)
+                windows.forEach(window => {
+                    try {
+                        const thumbnail = new WindowThumbnail(window, this._extension, this._panelWidth, this._resizeHandleWidth);
+                        // Mark active window
+                        if (window === focusWindow) {
+                            thumbnail.add_style_class_name('stage-manager-thumbnail-active');
+                            thumbnail.add_style_class_name(`accent-${accentColor}`);
+                        }
+                        this._thumbnailBox.add_child(thumbnail);
+                        this._thumbnails.push(thumbnail);
+                    } catch (e) {
+                        log(`Error creating thumbnail for window: ${e}`);
+                    }
+                });
+            } catch (e) {
+                log(`Error updating thumbnails: ${e}`);
+            }
+        }
+
+        _getAccentColor() {
+            try {
+                const settings = new Gio.Settings({ schema: 'org.gnome.desktop.interface' });
+                const accentColor = settings.get_string('accent-color');
+                // Valid accent colors: blue, teal, green, yellow, orange, red, pink, purple, slate
+                const validColors = ['blue', 'teal', 'green', 'yellow', 'orange', 'red', 'pink', 'purple', 'slate'];
+                if (validColors.includes(accentColor)) {
+                    return accentColor;
+                }
+                return 'blue'; // Default fallback
+            } catch (e) {
+                log(`Error getting accent color: ${e}`);
+                return 'blue';
+            }
+        }
+
+        destroy() {
+            try {
+                // Disconnect theme listener
+                if (this._themeChangedId && this._interfaceSettings) {
+                    this._interfaceSettings.disconnect(this._themeChangedId);
+                    this._themeChangedId = null;
+                    this._interfaceSettings = null;
+                }
+
+                // Disconnect stage handlers
+                if (this._stageMotionId) {
+                    global.stage.disconnect(this._stageMotionId);
+                    this._stageMotionId = null;
+                }
+
+                this._dragging = false;
+                this._extension = null;
+                this._settings = null;
+                this._thumbnails = [];
+
+                if (this._resizeHandle) {
+                    this._resizeHandle = null;
+                }
+            } catch (e) {
+                log(`Error destroying panel: ${e}`);
+            }
+            super.destroy();
+        }
+    });
 
 export default class ObisionExtensionGrid extends Extension {
     enable() {
@@ -840,7 +840,7 @@ export default class ObisionExtensionGrid extends Extension {
         this._previousFocusWindow = null;
         this._animatingWindows = new Set();
         this._windowHistory = []; // Track window focus history
-        
+
         // Create stage manager panel
         this._panel = new StageManagerPanel(this);
         Main.layoutManager.addChrome(this._panel, {
@@ -860,7 +860,7 @@ export default class ObisionExtensionGrid extends Extension {
             Shell.ActionMode.NORMAL,
             () => this._toggleStageManager()
         );
-        
+
         // Monitor for window changes
         this._windowCreatedId = global.display.connect('window-created', (display, window) => {
             if (this._active) {
@@ -872,7 +872,7 @@ export default class ObisionExtensionGrid extends Extension {
             if (this._active) {
                 // Track window history for "go back" on close
                 const focusWindow = global.display.focus_window;
-                if (focusWindow && !focusWindow.skip_taskbar && 
+                if (focusWindow && !focusWindow.skip_taskbar &&
                     focusWindow.get_window_type() === Meta.WindowType.NORMAL) {
                     // Remove if already in history, then add to end
                     this._windowHistory = this._windowHistory.filter(w => w !== focusWindow);
@@ -885,28 +885,28 @@ export default class ObisionExtensionGrid extends Extension {
                 this._updateLayout();
             }
         });
-        
+
         // Monitor window close to activate previous window
         // Connect to destroy signal on window actors
         this._setupWindowDestroyHandlers();
-        
+
         // Also setup handlers when new windows are created
         this._windowCreatedForDestroyId = global.display.connect('window-created', (display, window) => {
             if (window && !window.skip_taskbar && window.get_window_type() === Meta.WindowType.NORMAL) {
                 this._connectWindowDestroy(window);
             }
         });
-        
+
         // Setup hot edge for showing panel when maximized
         this._setupHotEdge();
-        
+
         // Monitor overview (Activities) to hide/show panel
         this._overviewShowingId = Main.overview.connect('showing', () => {
             if (this._active && this._panel) {
                 this._panel.hide();
             }
         });
-        
+
         this._overviewHiddenId = Main.overview.connect('hidden', () => {
             if (this._active) {
                 this._updateLayout();
@@ -938,7 +938,7 @@ export default class ObisionExtensionGrid extends Extension {
         // Activate Stage Manager automatically on startup
         this._activateStageManager();
 
-        log('Obision Extension Grid enabled');
+        log('Obision One Win enabled');
     }
 
     disable() {
@@ -973,7 +973,7 @@ export default class ObisionExtensionGrid extends Extension {
                 }
                 this._windowFocusId = null;
             }
-            
+
             if (this._windowCreatedForDestroyId) {
                 try {
                     global.display.disconnect(this._windowCreatedForDestroyId);
@@ -982,29 +982,29 @@ export default class ObisionExtensionGrid extends Extension {
                 }
                 this._windowCreatedForDestroyId = null;
             }
-            
+
             // Clear window destroy handlers
             if (this._windowDestroyIds) {
                 this._windowDestroyIds.forEach(({ actor, id }) => {
                     try {
                         if (actor) actor.disconnect(id);
-                    } catch (e) {}
+                    } catch (e) { }
                 });
                 this._windowDestroyIds = [];
             }
-            
+
             // Disconnect overview signals
             if (this._overviewShowingId) {
                 try {
                     Main.overview.disconnect(this._overviewShowingId);
-                } catch (e) {}
+                } catch (e) { }
                 this._overviewShowingId = null;
             }
-            
+
             if (this._overviewHiddenId) {
                 try {
                     Main.overview.disconnect(this._overviewHiddenId);
-                } catch (e) {}
+                } catch (e) { }
                 this._overviewHiddenId = null;
             }
 
@@ -1040,14 +1040,14 @@ export default class ObisionExtensionGrid extends Extension {
                 }
                 this._panel = null;
             }
-            
+
             // Destroy hot edge
             this._destroyHotEdge();
-            
+
             this._settings = null;
             this._originalFrames = null;
-            
-            log('Obision Extension Grid disabled');
+
+            log('Obision One Win disabled');
         } catch (e) {
             log(`Critical error in disable: ${e}`);
         }
@@ -1077,12 +1077,12 @@ export default class ObisionExtensionGrid extends Extension {
     _updatePanelPosition() {
         try {
             if (!this._panel) return;
-            
+
             const monitor = Main.layoutManager.primaryMonitor;
             if (!monitor) return;
-            
+
             const panelHeight = this._getDashPanelHeight();
-            
+
             // Position panel below top dash/panel
             this._panel.set_position(monitor.x, monitor.y + panelHeight.top);
             // Adjust height to fit between top and bottom panels
@@ -1094,19 +1094,19 @@ export default class ObisionExtensionGrid extends Extension {
 
     _showPanelAnimated() {
         if (!this._panel || this._panel.visible) return;
-        
+
         try {
             const monitor = Main.layoutManager.primaryMonitor;
             if (!monitor) return;
-            
+
             const panelHeight = this._getDashPanelHeight();
             const normalX = monitor.x;
             const hiddenX = normalX - this._panel._panelWidth;
-            
+
             // Start hidden to the left
             this._panel.set_position(hiddenX, monitor.y + panelHeight.top);
             this._panel.show();
-            
+
             // Slide in from left (same animation as unmaximize)
             this._panel.ease({
                 x: normalX,
@@ -1120,13 +1120,13 @@ export default class ObisionExtensionGrid extends Extension {
 
     _hidePanelAnimated() {
         if (!this._panel || !this._panel.visible) return;
-        
+
         try {
             const monitor = Main.layoutManager.primaryMonitor;
             if (!monitor) return;
-            
+
             const hiddenX = monitor.x - this._panel._panelWidth;
-            
+
             // Slide out to the left (same animation as maximize)
             this._panel.ease({
                 x: hiddenX,
@@ -1149,20 +1149,20 @@ export default class ObisionExtensionGrid extends Extension {
         try {
             const workspace = global.workspace_manager.get_active_workspace();
             if (!workspace) return;
-            
+
             // Get all normal windows
             const windows = workspace.list_windows().filter(w =>
                 w && !w.skip_taskbar && w.get_window_type() === Meta.WindowType.NORMAL
             );
-            
+
             // If no windows, hide panel
             if (windows.length === 0) {
                 this._hidePanelAnimated();
                 return;
             }
-            
+
             const focusWindow = global.display.focus_window;
-            
+
             // Check if window is maximized (either horizontally, vertically, or both)
             if (focusWindow && focusWindow.get_maximized() !== 0) {
                 this._hidePanelAnimated();
@@ -1177,13 +1177,13 @@ export default class ObisionExtensionGrid extends Extension {
             }
 
             // Resize and reposition active window
-            if (focusWindow && !focusWindow.skip_taskbar && 
+            if (focusWindow && !focusWindow.skip_taskbar &&
                 focusWindow.get_window_type() === Meta.WindowType.NORMAL) {
                 this._adjustActiveWindow(focusWindow);
             }
 
             // Update previous focus window reference
-            if (focusWindow && !focusWindow.skip_taskbar && 
+            if (focusWindow && !focusWindow.skip_taskbar &&
                 focusWindow.get_window_type() === Meta.WindowType.NORMAL) {
                 this._previousFocusWindow = focusWindow;
             }
@@ -1208,10 +1208,10 @@ export default class ObisionExtensionGrid extends Extension {
         try {
             const monitor = Main.layoutManager.primaryMonitor;
             if (!monitor || !this._panel) return;
-            
+
             // Panel width already includes the resize handle (it's inside the panel)
             const totalPanelWidth = this._panel._panelWidth;
-            
+
             // Save original frame if not already saved
             if (!this._originalFrames.has(window)) {
                 this._originalFrames.set(window, window.get_frame_rect());
@@ -1219,7 +1219,7 @@ export default class ObisionExtensionGrid extends Extension {
 
             // Detect dash/panel height (top or bottom)
             const panelHeight = this._getDashPanelHeight();
-            
+
             // Calculate new frame for active window - flush with panel (no gap)
             const newX = monitor.x + totalPanelWidth;
             const newY = monitor.y + panelHeight.top;
@@ -1265,18 +1265,18 @@ export default class ObisionExtensionGrid extends Extension {
                     this._updateLayout();
                 }
             });
-            
+
             if (!this._windowSizeChangedIds) {
                 this._windowSizeChangedIds = [];
             }
             this._windowSizeChangedIds.push({ window: window, id: id });
-            
+
             // Connect destroy handler for new window
             this._connectWindowDestroy(window);
-            
+
             // If no window is currently focused, activate this new window
             const focusWindow = global.display.focus_window;
-            if (!focusWindow || focusWindow.skip_taskbar || 
+            if (!focusWindow || focusWindow.skip_taskbar ||
                 focusWindow.get_window_type() !== Meta.WindowType.NORMAL) {
                 // Delay activation to let window initialize
                 GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100, () => {
@@ -1284,11 +1284,11 @@ export default class ObisionExtensionGrid extends Extension {
                         if (window && !window.minimized) {
                             window.activate(global.get_current_time());
                         }
-                    } catch (e) {}
+                    } catch (e) { }
                     return GLib.SOURCE_REMOVE;
                 });
             }
-            
+
             // Scroll to top when new window is added
             if (this._panel && this._panel._scrollView) {
                 const vscroll = this._panel._scrollView.get_vscroll_bar();
@@ -1296,23 +1296,23 @@ export default class ObisionExtensionGrid extends Extension {
                     vscroll.get_adjustment().set_value(0);
                 }
             }
-            
+
             this._updateLayout();
         }
     }
-    
+
     _cleanupWindowHistory() {
         // Remove destroyed windows from history
         const workspace = global.workspace_manager.get_active_workspace();
         if (!workspace) return;
-        
+
         const validWindows = workspace.list_windows().filter(w =>
             w && !w.skip_taskbar && w.get_window_type() === Meta.WindowType.NORMAL
         );
-        
+
         // Filter history to keep only valid windows
         this._windowHistory = this._windowHistory.filter(w => validWindows.includes(w));
-        
+
         // Also clean up original frames
         this._originalFrames.forEach((frame, window) => {
             if (!validWindows.includes(window)) {
@@ -1320,64 +1320,64 @@ export default class ObisionExtensionGrid extends Extension {
             }
         });
     }
-    
+
     _setupWindowDestroyHandlers() {
         this._windowDestroyIds = [];
-        
+
         // Connect to existing windows
         global.get_window_actors().forEach(actor => {
             const metaWindow = actor.meta_window;
-            if (metaWindow && !metaWindow.skip_taskbar && 
+            if (metaWindow && !metaWindow.skip_taskbar &&
                 metaWindow.get_window_type() === Meta.WindowType.NORMAL) {
                 this._connectWindowDestroy(metaWindow);
             }
         });
     }
-    
+
     _connectWindowDestroy(window) {
         if (!window) return;
-        
+
         const actor = window.get_compositor_private();
         if (!actor) return;
-        
+
         // Check if already connected
-        if (this._windowDestroyIds && 
+        if (this._windowDestroyIds &&
             this._windowDestroyIds.some(item => item.window === window)) {
             return;
         }
-        
+
         const id = actor.connect('destroy', () => {
             this._onWindowDestroyed(window);
         });
-        
+
         if (!this._windowDestroyIds) {
             this._windowDestroyIds = [];
         }
         this._windowDestroyIds.push({ window, actor, id });
     }
-    
+
     _onWindowDestroyed(closedWindow) {
         if (!this._active) return;
-        
+
         // Remove closed window from history
         this._windowHistory = this._windowHistory.filter(w => w !== closedWindow);
-        
+
         // Remove from original frames
         this._originalFrames.delete(closedWindow);
-        
+
         // Remove from destroy handlers
         if (this._windowDestroyIds) {
             this._windowDestroyIds = this._windowDestroyIds.filter(item => item.window !== closedWindow);
         }
-        
+
         // Delay to let GNOME process the window close
         GLib.timeout_add(GLib.PRIORITY_DEFAULT, 50, () => {
             if (!this._active) return GLib.SOURCE_REMOVE;
-            
+
             // Force update thumbnails
             if (this._panel) {
                 this._panel.updateThumbnails();
-                
+
                 // Scroll to top
                 if (this._panel._scrollView) {
                     const vscroll = this._panel._scrollView.get_vscroll_bar();
@@ -1386,21 +1386,21 @@ export default class ObisionExtensionGrid extends Extension {
                     }
                 }
             }
-            
+
             // Check remaining windows
             const workspace = global.workspace_manager.get_active_workspace();
             if (!workspace) return GLib.SOURCE_REMOVE;
-            
+
             const windows = workspace.list_windows().filter(w =>
                 w && !w.skip_taskbar && w.get_window_type() === Meta.WindowType.NORMAL
             );
-            
+
             if (windows.length === 0) {
                 // No more windows - hide panel
                 this._hidePanelAnimated();
                 return GLib.SOURCE_REMOVE;
             }
-            
+
             // Activate the previous window in history
             if (this._windowHistory.length > 0) {
                 const previousWindow = this._windowHistory[this._windowHistory.length - 1];
@@ -1434,15 +1434,15 @@ export default class ObisionExtensionGrid extends Extension {
                     log(`Error activating first window: ${e}`);
                 }
             }
-            
+
             return GLib.SOURCE_REMOVE;
         });
     }
-    
+
     _setupHotEdge() {
         const monitor = Main.layoutManager.primaryMonitor;
         if (!monitor) return;
-        
+
         // Create invisible trigger area on the left edge
         this._hotEdge = new St.Widget({
             reactive: true,
@@ -1451,17 +1451,17 @@ export default class ObisionExtensionGrid extends Extension {
             width: 1,
             height: monitor.height,
         });
-        
+
         Main.layoutManager.addChrome(this._hotEdge, {
             affectsStruts: false,
             trackFullscreen: false,
         });
-        
+
         this._hotEdge.set_position(monitor.x, monitor.y);
-        
+
         this._hotEdge.connect('enter-event', () => {
             if (!this._active) return Clutter.EVENT_PROPAGATE;
-            
+
             const focusWindow = global.display.focus_window;
             // Only show panel if current window is maximized
             if (focusWindow && focusWindow.get_maximized() !== 0) {
@@ -1471,11 +1471,11 @@ export default class ObisionExtensionGrid extends Extension {
                 this._adjustActiveWindow(focusWindow);
                 this._panel.updateThumbnails();
             }
-            
+
             return Clutter.EVENT_PROPAGATE;
         });
     }
-    
+
     _destroyHotEdge() {
         if (this._hotEdge) {
             Main.layoutManager.removeChrome(this._hotEdge);
@@ -1487,25 +1487,25 @@ export default class ObisionExtensionGrid extends Extension {
     _getDashPanelHeight() {
         const result = { top: 0, bottom: 0 };
         const monitor = Main.layoutManager.primaryMonitor;
-        
+
         // Search through all chrome actors to find panels
         // This works for Dash to Panel and other panel extensions
         Main.layoutManager._trackedActors.forEach(obj => {
             const actor = obj.actor;
             if (!actor || !actor.visible) return;
-            
+
             const height = actor.height;
             const y = actor.y;
             const width = actor.width;
-            
+
             // Look for wide actors that span most of the screen (likely panels)
             // Panels are typically at least 80% of screen width and have reasonable height
             const isWideEnough = width >= monitor.width * 0.8;
             const hasReasonableHeight = height > 20 && height < 200;
-            
+
             if (isWideEnough && hasReasonableHeight) {
                 log(`[Stage Manager] Panel-like actor found: ${actor.name}, y=${y}, height=${height}, width=${width}`);
-                
+
                 // Determine if panel is at top or bottom based on position
                 if (y <= monitor.y + 50) {
                     result.top = Math.max(result.top, height);
@@ -1514,7 +1514,7 @@ export default class ObisionExtensionGrid extends Extension {
                 }
             }
         });
-        
+
         log(`[Stage Manager] Final panel heights - top: ${result.top}, bottom: ${result.bottom}`);
         return result;
     }
