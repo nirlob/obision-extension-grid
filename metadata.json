@@ -6,7 +6,7 @@
     "48",
     "49"
   ],
-  "version": 1,
+  "version": 11,
   "url": "https://github.com/nirlob/obision-extension-one-win",
   "settings-schema": "org.gnome.shell.extensions.obision-extension-grid"
 }
