@@ -1,0 +1,68 @@
+name: Build and Release DEB Package
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-deb:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Install build dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y devscripts equivs glib-2.0-dev gnome-shell-common
+        sudo mk-build-deps -i -r -t "apt-get -y --no-install-recommends" debian/control
+      
+    - name: Build DEB package
+      run: |
+        dpkg-buildpackage -us -uc -b
+        mkdir -p builddir
+        mv ../gnome-shell-extension-obision-one-win_*.deb builddir/obision-extension-one-win.deb
+        
+    - name: Verify DEB exists
+      run: |
+        if [ ! -f builddir/obision-extension-one-win.deb ]; then
+          echo "ERROR: DEB file not found!"
+          echo "Contents of builddir:"
+          ls -la builddir/ || echo "builddir not found"
+          echo "Contents of parent dir:"
+          ls -la ../
+          exit 1
+        fi
+        echo "✅ DEB file found:"
+        ls -lh builddir/obision-extension-one-win.deb
+      
+    - name: Create Release and Upload DEB
+      uses: softprops/action-gh-release@v1
+      with:
+        files: builddir/obision-extension-one-win.deb
+        generate_release_notes: true
+        body: |
+          ## Installation
+          
+          Download the `.deb` file and install it:
+          
+          ```bash
+          sudo dpkg -i obision-extension-one-win.deb
+          sudo apt-get install -f
+          ```
+          
+          Then restart GNOME Shell:
+          - **X11**: Press `Alt+F2`, type `r`, press `Enter`
+          - **Wayland**: Log out and log back in
+          
+          Enable the extension:
+          ```bash
+          gnome-extensions enable obision-extension-one-win@obision.com
+          ```
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

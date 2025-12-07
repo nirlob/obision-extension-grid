@@ -1,0 +1,26 @@
+Source: obision-extension-one-win
+Section: gnome
+Priority: optional
+Maintainer: Jose Francisco Gonzalez <jfgs1609@gmail.com>
+Build-Depends: debhelper-compat (= 13)
+Standards-Version: 4.6.0
+Homepage: https://github.com/nirlob/obision-extension-one-win
+Vcs-Git: https://github.com/nirlob/obision-extension-one-win.git
+Vcs-Browser: https://github.com/nirlob/obision-extension-one-win
+
+Package: gnome-shell-extension-obision-one-win
+Architecture: all
+Depends: ${misc:Depends},
+         gnome-shell (>= 48)
+Description: Stage Manager-style window management for GNOME Shell
+ Obision One Win is a GNOME Shell extension that provides
+ Stage Manager-style window management with live thumbnail previews.
+ .
+ Features:
+  - Stage Manager mode with side panel
+  - Live thumbnails of inactive windows
+  - Real-time window clones
+  - Quick window switching
+  - Customizable panel width and position
+  - Auto-minimize inactive windows
+  - Theme integration with GNOME accent colors
