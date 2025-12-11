@@ -28,3 +28,10 @@ Thumbs.db
 
 # Build directory
 builddir/
+
+# Debian package build artifacts
+debian/gnome-shell-extension-obision-one-win/
+debian/*.substvars
+debian/debhelper-build-stamp
+debian/files
+debian/.debhelper/
