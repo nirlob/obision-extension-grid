@@ -225,17 +225,9 @@ const WindowThumbnail = GObject.registerClass(
                 if (currentWindow && currentWindow !== this._window) {
                     const currentActor = currentWindow.get_compositor_private();
                     if (currentActor) {
-                        // Slide current window to the right (exit)
-                        const monitor = Main.layoutManager.primaryMonitor;
-                        currentActor.ease({
-                            translation_x: monitor.width,
-                            duration: 200,
-                            mode: Clutter.AnimationMode.EASE_IN_QUAD,
-                            onComplete: () => {
-                                currentActor.translation_x = 0;
-                                currentWindow.minimize();
-                            },
-                        });
+                        // Minimize immediately without animation
+                        currentActor.translation_x = 0;
+                        currentWindow.minimize();
                     }
                 }
 
@@ -244,21 +236,10 @@ const WindowThumbnail = GObject.registerClass(
                     this._window.unminimize();
                 }
 
-                // Prepare entry animation - start from left
+                // Show window immediately without animation
                 const newActor = this._window.get_compositor_private();
                 if (newActor) {
-                    const monitor = Main.layoutManager.primaryMonitor;
-                    newActor.translation_x = -monitor.width;
-
-                    // Slight delay to let the window unminimize
-                    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 50, () => {
-                        newActor.ease({
-                            translation_x: 0,
-                            duration: 250,
-                            mode: Clutter.AnimationMode.EASE_OUT_QUAD,
-                        });
-                        return GLib.SOURCE_REMOVE;
-                    });
+                    newActor.translation_x = 0;
                 }
 
                 this._activateWindow(this._window);
@@ -270,27 +251,10 @@ const WindowThumbnail = GObject.registerClass(
 
         _minimizeWithAnimation() {
             const actor = this._window.get_compositor_private();
-            if (!actor) {
-                this._window.minimize();
-                return;
+            if (actor) {
+                actor.translation_x = 0;
             }
-
-            const monitor = imports.ui.main.layoutManager.primaryMonitor;
-            if (!monitor) {
-                this._window.minimize();
-                return;
-            }
-
-            // Slide out to the left
-            actor.ease({
-                translation_x: -actor.width,
-                duration: 200,
-                mode: Clutter.AnimationMode.EASE_IN_QUAD,
-                onComplete: () => {
-                    actor.translation_x = 0;
-                    this._window.minimize();
-                },
-            });
+            this._window.minimize();
         }
 
         _activateWindow(window) {
@@ -1018,27 +982,31 @@ const StageManagerPanel = GObject.registerClass(
                 log(`Error getting shortcut: ${e}`);
             }
 
-            // Add Disable One Win option (no shortcut - would remove the keybinding)
+            // Add Disable One Win option with shortcut
             const disableItem = new PopupMenu.PopupBaseMenuItem();
             const disableBox = new St.BoxLayout({ x_expand: true });
             const disableLabel = new St.Label({
                 text: 'Disable One Win',
                 y_align: Clutter.ActorAlign.CENTER,
             });
+            const disableSpacer = new St.Widget({ x_expand: true });
+            const disableAccel = new St.Label({
+                text: shortcutText,
+                y_align: Clutter.ActorAlign.CENTER,
+                style_class: 'menu-accelerator',
+            });
             disableBox.add_child(disableLabel);
+            disableBox.add_child(disableSpacer);
+            disableBox.add_child(disableAccel);
             disableItem.add_child(disableBox);
             disableItem.connect('activate', () => {
                 this._closeHeaderMenu();
                 if (this._extension) {
                     try {
-                        // Disable the extension using GNOME Shell's extension manager
                         const uuid = this._extension.metadata.uuid;
-                        const extensionManager = Main.extensionManager;
-                        if (extensionManager) {
-                            extensionManager.disableExtension(uuid);
-                        }
+                        Main.extensionManager.disableExtension(uuid);
                     } catch (e) {
-                        log(`Error disabling extension: ${e}`);
+                        logError(e, 'Error disabling extension');
                     }
                 }
             });
@@ -1160,14 +1128,15 @@ export default class ObisionExtGrid extends Extension {
 
         // Create stage manager panel
         this._panel = new StageManagerPanel(this);
-        Main.layoutManager.addChrome(this._panel, {
-            affectsStruts: false,
-            trackFullscreen: false,
-        });
+        // Add to uiGroup at index 0 to ensure it appears behind other panels
+        Main.layoutManager.uiGroup.insert_child_at_index(this._panel, 0);
         this._panel.hide();
 
-        // Position panel on the left
-        this._updatePanelPosition();
+        // Position panel on the left with delay to allow other extensions to initialize
+        GLib.timeout_add(GLib.PRIORITY_DEFAULT, 2000, () => {
+            this._updatePanelPosition();
+            return GLib.SOURCE_REMOVE;
+        });
 
         // Add keybinding to toggle stage manager
         Main.wm.addKeybinding(
@@ -1384,7 +1353,7 @@ export default class ObisionExtGrid extends Extension {
             // Destroy panel
             if (this._panel) {
                 try {
-                    Main.layoutManager.removeChrome(this._panel);
+                    Main.layoutManager.uiGroup.remove_child(this._panel);
                     this._panel.destroy();
                 } catch (e) {
                     log(`Error destroying panel: ${e}`);
@@ -1471,6 +1440,13 @@ export default class ObisionExtGrid extends Extension {
         this._active = false;
         this._panel.hide();
         this._restoreWindowFrames();
+
+        // Maximize the active window if there is one
+        const focusWindow = global.display.focus_window;
+        if (focusWindow && !focusWindow.skip_taskbar &&
+            focusWindow.get_window_type() === Meta.WindowType.NORMAL) {
+            focusWindow.maximize(Meta.MaximizeFlags.BOTH);
+        }
     }
 
     _updatePanelPosition() {
@@ -1573,20 +1549,26 @@ export default class ObisionExtGrid extends Extension {
 
             const focusWindow = global.display.focus_window;
 
-            // Check if window is maximized (either horizontally, vertically, or both)
-            if (focusWindow && focusWindow.get_maximized() !== 0) {
+            // Only hide panel if we have a NORMAL window that is maximized
+            // Ignore focus changes to non-normal windows (popups, menus, etc.)
+            if (focusWindow && !focusWindow.skip_taskbar &&
+                focusWindow.get_window_type() === Meta.WindowType.NORMAL &&
+                focusWindow.get_maximized() !== 0) {
                 this._hidePanelAnimated();
                 return;
-            } else {
+            } else if (focusWindow && !focusWindow.skip_taskbar &&
+                focusWindow.get_window_type() === Meta.WindowType.NORMAL) {
+                // Only show panel if focus is on a normal window
                 this._showPanelAnimated();
             }
+            // If focus is not on a normal window (menu, popup, etc.), don't change panel visibility
 
             // Update thumbnails in panel
             if (this._panel) {
                 this._panel.updateThumbnails();
             }
 
-            // Resize and reposition active window
+            // Resize and reposition active window only if it's a normal window
             if (focusWindow && !focusWindow.skip_taskbar &&
                 focusWindow.get_window_type() === Meta.WindowType.NORMAL) {
                 this._adjustActiveWindow(focusWindow);
@@ -1598,41 +1580,7 @@ export default class ObisionExtGrid extends Extension {
                 this._previousFocusWindow = focusWindow;
             }
 
-            // Minimize or hide other windows
-            // Don't minimize if header menu is open (it can steal focus temporarily)
-            const isHeaderMenuOpen = this._panel?._headerMenu !== null && this._panel?._headerMenu !== undefined;
-
-            // Don't minimize if preferences window is open (to allow dialogs)
-            const prefsWindow = this._findPreferencesWindow();
-            const isPrefsOpen = prefsWindow !== null && prefsWindow !== undefined;
-
-            // Check if focus window is a dialog/modal and get its transient parent
-            let parentOfDialog = null;
-            if (focusWindow) {
-                const windowType = focusWindow.get_window_type();
-                // If focus is on a dialog, modal, or utility window, find its parent
-                if (windowType === Meta.WindowType.DIALOG ||
-                    windowType === Meta.WindowType.MODAL_DIALOG ||
-                    windowType === Meta.WindowType.UTILITY) {
-                    parentOfDialog = focusWindow.get_transient_for();
-                }
-            }
-
-            if (!isHeaderMenuOpen && !isPrefsOpen) {
-                windows.forEach(window => {
-                    try {
-                        // Don't minimize if:
-                        // 1. It's the focus window
-                        // 2. It's the parent of the focused dialog
-                        if (window !== focusWindow && window !== parentOfDialog) {
-                            // Keep them on workspace but not visible in main area
-                            window.minimize();
-                        }
-                    } catch (e) {
-                        log(`Error minimizing window: ${e}`);
-                    }
-                });
-            }
+            // Don't auto-minimize other windows - let user manage window visibility via thumbnails
         } catch (e) {
             log(`Error updating layout: ${e}`);
         }
@@ -1930,36 +1878,28 @@ export default class ObisionExtGrid extends Extension {
 
     _getDashPanelHeight() {
         const result = { top: 0, bottom: 0 };
-        const monitor = Main.layoutManager.primaryMonitor;
 
-        // Search through all chrome actors to find panels
-        // This works for Dash to Panel and other panel extensions
-        Main.layoutManager._trackedActors.forEach(obj => {
-            const actor = obj.actor;
-            if (!actor || !actor.visible) return;
+        // Try to detect obision-ext-dash settings
+        try {
+            const dashSettings = new Gio.Settings({ schema: 'com.obision.ext.dash' });
+            const autoHide = dashSettings.get_boolean('auto-hide');
 
-            const height = actor.height;
-            const y = actor.y;
-            const width = actor.width;
-
-            // Look for wide actors that span most of the screen (likely panels)
-            // Panels are typically at least 80% of screen width and have reasonable height
-            const isWideEnough = width >= monitor.width * 0.8;
-            const hasReasonableHeight = height > 20 && height < 200;
-
-            if (isWideEnough && hasReasonableHeight) {
-                log(`[Stage Manager] Panel-like actor found: ${actor.name}, y=${y}, height=${height}, width=${width}`);
-
-                // Determine if panel is at top or bottom based on position
-                if (y <= monitor.y + 50) {
-                    result.top = Math.max(result.top, height);
-                } else if (y >= monitor.y + monitor.height - height - 50) {
-                    result.bottom = Math.max(result.bottom, height);
-                }
+            // If auto-hide is enabled, use full screen height (no top offset)
+            if (autoHide) {
+                log(`[Obision One Win] obision-ext-dash auto-hide enabled, using full height`);
+                result.top = 0;
+            } else {
+                // If auto-hide is disabled, subtract dash height
+                const dashHeight = dashSettings.get_int('dash-height');
+                log(`[Obision One Win] obision-ext-dash auto-hide disabled, dash height=${dashHeight}`);
+                result.top = dashHeight > 0 ? dashHeight : 0;
             }
-        });
+        } catch (e) {
+            // Extension not installed or not enabled, use full height
+            log(`[Obision One Win] obision-ext-dash not available, using full height`);
+            result.top = 0;
+        }
 
-        log(`[Stage Manager] Final panel heights - top: ${result.top}, bottom: ${result.bottom}`);
         return result;
     }
 }

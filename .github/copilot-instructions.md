@@ -25,13 +25,14 @@ A Stage Manager-style window management extension for GNOME Shell with live thum
 ```bash
 npm run build               # Compile schemas + pack extension with gnome-extensions pack
 npm install                 # Install devDependencies (eslint, prettier) for code quality
+npm run install             # Install built extension to ~/.local/share/gnome-shell/extensions/
 npm run deploy              # Build + install + show reload instructions
 npm run update              # Build + install + reload (X11 only - uses scripts/reload.sh)
 npm run enable              # Enable the extension after installation
 npm run clean               # Remove build artifacts (builddir/, gschemas.compiled)
 ```
 
-**Note**: The extension has NO runtime npm dependencies - only devDependencies for linting/formatting.
+**Note**: The extension has NO runtime npm dependencies - only devDependencies for linting/formatting. The `pack` command creates `obision-ext-one-win@obision.com.shell-extension.zip` from root files (extension.js, prefs.js, metadata.json, stylesheet.css) plus schemas/ directory.
 
 **IMPORTANT**: Extension UUID must match everywhere: `obision-ext-one-win@obision.com`
 - `metadata.json`: `"uuid"` field
@@ -55,7 +56,12 @@ After modifying `schemas/com.obision.ext.one-win.gschema.xml`:
 ```bash
 npm run release             # Automated version bump, git tag, and push
 ```
-This script (`scripts/release.sh`) increments minor version in `package.json`, `metadata.json`, and `debian/changelog`, then creates git tag. GitHub Actions builds DEB package automatically.
+This script (`scripts/release.sh`) performs:
+1. Increments minor version in `package.json` (e.g., 0.2.0 → 0.3.0)
+2. Updates `metadata.json` version (concatenates major+minor, e.g., 03)
+3. Updates `debian/changelog` with new entry
+4. Commits changes, creates git tag `v0.3.0`, and pushes to remote
+5. GitHub Actions workflow (`.github/workflows/release.yml`) triggers on `v*` tags, builds DEB package, and creates GitHub Release with auto-generated notes
 
 ### DEB Package Workflow
 ```bash
@@ -168,4 +174,11 @@ npm run format        # Prettier formatting
 npm run format:check  # Check formatting without modifying files
 ```
 
-ESLint configured for GJS globals (`log`, `logError`, `imports`, `global`, `ARGV`) in `.eslintrc.json`. Uses `eslint:recommended` with Prettier integration.
+**Configuration Files:**
+- `.eslintrc.json`: ESLint config with GJS globals (`log`, `logError`, `imports`, `global`, `ARGV`), uses `eslint:recommended` + `plugin:prettier/recommended`
+- `.prettierrc.json`: Prettier config (2 spaces, single quotes, no trailing commas)
+- `.eslintignore` / `.prettierignore`: Excludes node_modules/, builddir/, schemas/gschemas.compiled
+
+**GJS-specific Linting Rules:**
+- `no-unused-vars`: Warns only (allows `_` prefix for unused params)
+- `no-console`: Disabled (use `log()` and `logError()` instead of console methods)
